@@ -1,0 +1,52 @@
+# GoMall .gitignore
+
+# 二进制文件
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# 构建目录
+bin/
+build/
+
+# Go 模块
+go.work
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 配置文件（敏感信息）
+conf/config.yaml
+conf/*.local.*
+
+# 日志
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.temp
+
+# 数据目录
+data/
+
+# Docker
+.docker/
+
+# 覆盖文件（如果存在）
+.DS_Store
+Thumbs.db
+
+# 测试覆盖率
+coverage.out
+
+# proto生成文件
+*.pb.go
