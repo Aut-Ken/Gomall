@@ -87,3 +87,19 @@ type Stock struct {
 func (Stock) TableName() string {
 	return "stocks"
 }
+
+// Cart 购物车模型
+type Cart struct {
+	ID         uint           `gorm:"column:id;primarykey" json:"id"`
+	UserID     uint           `gorm:"column:user_id;index;not null" json:"user_id"`
+	ProductID  uint           `gorm:"column:product_id;index;not null" json:"product_id"`
+	Quantity   int            `gorm:"column:quantity;not null;default:1" json:"quantity"`
+	CreatedAt  time.Time      `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt  time.Time      `gorm:"column:updated_at" json:"updated_at"`
+	DeletedAt  gorm.DeletedAt `gorm:"column:deleted_at;index" json:"-"`
+}
+
+// TableName 指定表名
+func (Cart) TableName() string {
+	return "carts"
+}

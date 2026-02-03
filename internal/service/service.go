@@ -3,8 +3,10 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"gomall/internal/model"
 	"gomall/internal/rabbitmq"
+	"gomall/internal/redis"
 	"gomall/internal/repository"
 	"gomall/pkg/jwt"
 	"gomall/pkg/password"
@@ -344,9 +346,20 @@ func (s *OrderService) CreateOrder(userID uint, req *CreateOrderRequest) (*Order
 		return nil, errors.New("商品已下架")
 	}
 
-	// 检查库存
-	if product.Stock < req.Quantity {
-		return nil, repository.ErrInsufficientStock
+	// 使用 Redis 库存预检（与秒杀保持一致）
+	ctx := context.Background()
+	stockKey := fmt.Sprintf("gomall:stock:%d", req.ProductID)
+	stock, err := redis.Client.Get(ctx, stockKey).Int()
+	if err == nil && stock >= 0 {
+		// Redis 库存存在，使用 Redis 库存
+		if stock < req.Quantity {
+			return nil, repository.ErrInsufficientStock
+		}
+	} else {
+		// Redis 库存不存在，使用数据库库存
+		if product.Stock < req.Quantity {
+			return nil, repository.ErrInsufficientStock
+		}
 	}
 
 	// 生成订单号
@@ -363,7 +376,7 @@ func (s *OrderService) CreateOrder(userID uint, req *CreateOrderRequest) (*Order
 	}
 
 	// 发送订单消息到 RabbitMQ（异步处理）
-	if err := rabbitmq.PublishOrderMessage(context.Background(), orderMsg); err != nil {
+	if err := rabbitmq.PublishOrderMessage(ctx, orderMsg); err != nil {
 		return nil, errors.New("订单提交失败，请稍后重试")
 	}
 
@@ -553,4 +566,181 @@ func (s *OrderService) StartOrderConsumer() {
 		log.Printf("订单创建成功: %s", msg.OrderNo)
 		return nil
 	})
+}
+
+// CartService 购物车业务逻辑层
+type CartService struct {
+	cartRepo    *repository.CartRepository
+	productRepo *repository.ProductRepository
+}
+
+// NewCartService 创建购物车服务实例
+func NewCartService() *CartService {
+	return &CartService{
+		cartRepo:    repository.NewCartRepository(),
+		productRepo: repository.NewProductRepository(),
+	}
+}
+
+// AddToCartRequest 添加到购物车请求结构
+type AddToCartRequest struct {
+	ProductID uint `json:"product_id" binding:"required"`
+	Quantity  int  `json:"quantity" binding:"required,gt=0"`
+}
+
+// UpdateCartRequest 更新购物车请求结构
+type UpdateCartRequest struct {
+	Quantity int `json:"quantity" binding:"required,gte=1"`
+}
+
+// CartItemResponse 购物车项响应结构
+type CartItemResponse struct {
+	ID          uint    `json:"id"`
+	ProductID   uint    `json:"product_id"`
+	ProductName string  `json:"product_name"`
+	ProductImage string  `json:"product_image"`
+	Price       float64 `json:"price"`
+	Quantity    int     `json:"quantity"`
+	SubTotal    float64 `json:"sub_total"`
+}
+
+// CartResponse 购物车响应结构
+type CartResponse struct {
+	Items      []CartItemResponse `json:"items"`
+	TotalCount int                `json:"total_count"`
+	TotalPrice float64            `json:"total_price"`
+}
+
+// AddToCart 添加商品到购物车
+func (s *CartService) AddToCart(userID uint, req *AddToCartRequest) (*CartItemResponse, error) {
+	// 检查商品是否存在
+	product, err := s.productRepo.GetByID(req.ProductID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 检查商品是否上架
+	if product.Status != 1 {
+		return nil, errors.New("商品已下架")
+	}
+
+	// 检查库存
+	if product.Stock < req.Quantity {
+		return nil, repository.ErrInsufficientStock
+	}
+
+	// 检查购物车中是否已存在该商品
+	existingCart, err := s.cartRepo.GetByUserAndProduct(userID, req.ProductID)
+	if err == nil && existingCart != nil {
+		// 已存在，增加数量
+		existingCart.Quantity += req.Quantity
+		if err := s.cartRepo.Update(existingCart); err != nil {
+			return nil, errors.New("更新购物车失败")
+		}
+
+		return &CartItemResponse{
+			ID:          existingCart.ID,
+			ProductID:   product.ID,
+			ProductName: product.Name,
+			ProductImage: product.ImageURL,
+			Price:       product.Price,
+			Quantity:    existingCart.Quantity,
+			SubTotal:    product.Price * float64(existingCart.Quantity),
+		}, nil
+	}
+
+	// 不存在，创建新记录
+	cart := &model.Cart{
+		UserID:    userID,
+		ProductID: req.ProductID,
+		Quantity:  req.Quantity,
+	}
+
+	if err := s.cartRepo.Create(cart); err != nil {
+		return nil, errors.New("添加购物车失败")
+	}
+
+	return &CartItemResponse{
+		ID:          cart.ID,
+		ProductID:   product.ID,
+		ProductName: product.Name,
+		ProductImage: product.ImageURL,
+		Price:       product.Price,
+		Quantity:   cart.Quantity,
+		SubTotal:   product.Price * float64(cart.Quantity),
+	}, nil
+}
+
+// GetCartList 获取购物车列表
+func (s *CartService) GetCartList(userID uint) (*CartResponse, error) {
+	carts, err := s.cartRepo.GetListByUserID(userID)
+	if err != nil {
+		return nil, errors.New("获取购物车失败")
+	}
+
+	response := &CartResponse{
+		Items:      make([]CartItemResponse, 0),
+		TotalCount: 0,
+		TotalPrice: 0,
+	}
+
+	for _, cart := range carts {
+		product, err := s.productRepo.GetByID(cart.ProductID)
+		if err != nil {
+			continue // 跳过不存在的商品
+		}
+
+		subTotal := product.Price * float64(cart.Quantity)
+		item := CartItemResponse{
+			ID:          cart.ID,
+			ProductID:   product.ID,
+			ProductName: product.Name,
+			ProductImage: product.ImageURL,
+			Price:       product.Price,
+			Quantity:   cart.Quantity,
+			SubTotal:   subTotal,
+		}
+
+		response.Items = append(response.Items, item)
+		response.TotalCount += cart.Quantity
+		response.TotalPrice += subTotal
+	}
+
+	return response, nil
+}
+
+// UpdateCartItem 更新购物车商品数量
+func (s *CartService) UpdateCartItem(userID, cartID uint, req *UpdateCartRequest) error {
+	cart, err := s.cartRepo.GetByUserAndProduct(userID, cartID)
+	if err != nil {
+		return err
+	}
+
+	// 检查商品库存
+	product, err := s.productRepo.GetByID(cart.ProductID)
+	if err != nil {
+		return err
+	}
+
+	if product.Stock < req.Quantity {
+		return repository.ErrInsufficientStock
+	}
+
+	cart.Quantity = req.Quantity
+	return s.cartRepo.Update(cart)
+}
+
+// RemoveFromCart 从购物车删除商品
+func (s *CartService) RemoveFromCart(userID, productID uint) error {
+	cart, err := s.cartRepo.GetByUserAndProduct(userID, productID)
+	if err != nil {
+		return err
+	}
+
+	return s.cartRepo.Delete(cart.ID)
+}
+
+// ClearCart 清空购物车
+func (s *CartService) ClearCart(userID uint) error {
+	return s.cartRepo.DeleteAllByUserID(userID)
 }

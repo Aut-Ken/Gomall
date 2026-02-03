@@ -483,3 +483,221 @@ func (h *OrderHandler) Cancel(c *gin.Context) {
 		"msg":  "取消成功",
 	})
 }
+
+// CartHandler 购物车接口处理层
+type CartHandler struct {
+	cartService *service.CartService
+}
+
+// NewCartHandler 创建购物车处理器
+func NewCartHandler() *CartHandler {
+	return &CartHandler{
+		cartService: service.NewCartService(),
+	}
+}
+
+// AddToCart 添加商品到购物车
+// @Summary 添加到购物车
+// @Description 将商品添加到购物车
+// @Tags 购物车
+// @Accept json
+// @Produce json
+// @Param req body service.AddToCartRequest true "商品信息"
+// @Security Bearer
+// @Success 200 {object} map[string]interface{}
+// @Router /api/cart [post]
+func (h *CartHandler) AddToCart(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"code": 401,
+			"msg":  "未登录",
+		})
+		return
+	}
+
+	var req service.AddToCartRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  "参数错误: " + err.Error(),
+		})
+		return
+	}
+
+	item, err := h.cartService.AddToCart(userID, &req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "添加成功",
+		"data": item,
+	})
+}
+
+// List 获取购物车列表
+// @Summary 获取购物车列表
+// @Description 获取当前用户的购物车列表
+// @Tags 购物车
+// @Produce json
+// @Security Bearer
+// @Success 200 {object} map[string]interface{}
+// @Router /api/cart [get]
+func (h *CartHandler) List(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"code": 401,
+			"msg":  "未登录",
+		})
+		return
+	}
+
+	cart, err := h.cartService.GetCartList(userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "success",
+		"data": cart,
+	})
+}
+
+// Update 更新购物车商品数量
+// @Summary 更新购物车
+// @Description 更新购物车中商品的数量
+// @Tags 购物车
+// @Accept json
+// @Produce json
+// @Param product_id query int true "商品ID"
+// @Param req body service.UpdateCartRequest true "数量"
+// @Security Bearer
+// @Success 200 {object} map[string]interface{}
+// @Router /api/cart [put]
+func (h *CartHandler) Update(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"code": 401,
+			"msg":  "未登录",
+		})
+		return
+	}
+
+	productID, _ := strconv.ParseUint(c.Query("product_id"), 10, 64)
+	if productID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  "商品ID不能为空",
+		})
+		return
+	}
+
+	var req service.UpdateCartRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  "参数错误: " + err.Error(),
+		})
+		return
+	}
+
+	if err := h.cartService.UpdateCartItem(userID, uint(productID), &req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "更新成功",
+	})
+}
+
+// Remove 从购物车删除商品
+// @Summary 删除购物车商品
+// @Description 从购物车中删除指定商品
+// @Tags 购物车
+// @Produce json
+// @Param product_id query int true "商品ID"
+// @Security Bearer
+// @Success 200 {object} map[string]interface{}
+// @Router /api/cart [delete]
+func (h *CartHandler) Remove(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"code": 401,
+			"msg":  "未登录",
+		})
+		return
+	}
+
+	productID, _ := strconv.ParseUint(c.Query("product_id"), 10, 64)
+	if productID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  "商品ID不能为空",
+		})
+		return
+	}
+
+	if err := h.cartService.RemoveFromCart(userID, uint(productID)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "删除成功",
+	})
+}
+
+// Clear 清空购物车
+// @Summary 清空购物车
+// @Description 清空当前用户的购物车
+// @Tags 购物车
+// @Produce json
+// @Security Bearer
+// @Success 200 {object} map[string]interface{}
+// @Router /api/cart/clear [delete]
+func (h *CartHandler) Clear(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"code": 401,
+			"msg":  "未登录",
+		})
+		return
+	}
+
+	if err := h.cartService.ClearCart(userID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"code": 400,
+			"msg":  err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"code": 200,
+		"msg":  "清空成功",
+	})
+}

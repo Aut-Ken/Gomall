@@ -13,7 +13,8 @@ func Setup(r *gin.Engine) {
 	userHandler := api.NewUserHandler()
 	productHandler := api.NewProductHandler()
 	orderHandler := api.NewOrderHandler()
-	seckillHandler := api.NewSeckillHandler() // 已初始化
+	seckillHandler := api.NewSeckillHandler()    // 已初始化
+	cartHandler := api.NewCartHandler()          // 购物车处理器
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -69,6 +70,17 @@ func Setup(r *gin.Engine) {
 		seckillAdminGroup.Use(middleware.AdminAuthMiddleware())
 		{
 			seckillAdminGroup.POST("/init", seckillHandler.InitStock) // 初始化库存: POST /api/seckill/init
+		}
+
+		// --- 新增：购物车模块 ---
+		cartGroup := apiGroup.Group("/cart")
+		cartGroup.Use(middleware.AuthMiddleware())
+		{
+			cartGroup.POST("", cartHandler.AddToCart)          // 添加到购物车: POST /api/cart
+			cartGroup.GET("", cartHandler.List)               // 获取购物车列表: GET /api/cart
+			cartGroup.PUT("", cartHandler.Update)             // 更新购物车: PUT /api/cart
+			cartGroup.DELETE("", cartHandler.Remove)          // 删除购物车商品: DELETE /api/cart?product_id=xxx
+			cartGroup.DELETE("/clear", cartHandler.Clear)     // 清空购物车: DELETE /api/cart/clear
 		}
 
 		// 用户中心（需要登录）

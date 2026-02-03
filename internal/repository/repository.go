@@ -11,11 +11,12 @@ import (
 
 // 定义错误信息
 var (
-	ErrUserNotFound     = errors.New("用户不存在")
-	ErrUserAlreadyExist = errors.New("用户已存在")
-	ErrProductNotFound  = errors.New("商品不存在")
-	ErrOrderNotFound    = errors.New("订单不存在")
+	ErrUserNotFound      = errors.New("用户不存在")
+	ErrUserAlreadyExist  = errors.New("用户已存在")
+	ErrProductNotFound   = errors.New("商品不存在")
+	ErrOrderNotFound     = errors.New("订单不存在")
 	ErrInsufficientStock = errors.New("库存不足")
+	ErrCartNotFound      = errors.New("购物车记录不存在")
 )
 
 // UserRepository 用户数据访问层
@@ -259,4 +260,58 @@ func (r *StockRepository) DeductStock(productID uint, quantity int) error {
 
 		return nil
 	})
+}
+
+// CartRepository 购物车数据访问层
+type CartRepository struct{}
+
+// NewCartRepository 创建购物车仓库实例
+func NewCartRepository() *CartRepository {
+	return &CartRepository{}
+}
+
+// Create 创建购物车记录
+func (r *CartRepository) Create(cart *model.Cart) error {
+	return database.DB.Create(cart).Error
+}
+
+// GetByUserAndProduct 根据用户ID和商品ID获取购物车记录
+func (r *CartRepository) GetByUserAndProduct(userID, productID uint) (*model.Cart, error) {
+	var cart model.Cart
+	if err := database.DB.Where("user_id = ? AND product_id = ?", userID, productID).First(&cart).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrCartNotFound
+		}
+		return nil, err
+	}
+	return &cart, nil
+}
+
+// GetListByUserID 获取用户的购物车列表
+func (r *CartRepository) GetListByUserID(userID uint) ([]model.Cart, error) {
+	var carts []model.Cart
+	if err := database.DB.Where("user_id = ?", userID).Find(&carts).Error; err != nil {
+		return nil, err
+	}
+	return carts, nil
+}
+
+// Update 更新购物车记录
+func (r *CartRepository) Update(cart *model.Cart) error {
+	return database.DB.Save(cart).Error
+}
+
+// Delete 删除购物车记录
+func (r *CartRepository) Delete(id uint) error {
+	return database.DB.Delete(&model.Cart{}, id).Error
+}
+
+// DeleteByUserAndProduct 根据用户ID和商品ID删除购物车记录
+func (r *CartRepository) DeleteByUserAndProduct(userID, productID uint) error {
+	return database.DB.Where("user_id = ? AND product_id = ?", userID, productID).Delete(&model.Cart{}).Error
+}
+
+// DeleteAllByUserID 清空用户购物车
+func (r *CartRepository) DeleteAllByUserID(userID uint) error {
+	return database.DB.Where("user_id = ?", userID).Delete(&model.Cart{}).Error
 }

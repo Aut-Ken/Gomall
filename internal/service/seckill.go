@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gomall/internal/model"
+	"gomall/internal/rabbitmq"
 	"gomall/internal/redis"
 	"gomall/internal/repository"
 )
@@ -37,15 +38,6 @@ func NewSeckillService() *SeckillService {
 	}
 }
 
-// SeckillConfig 秒杀活动配置
-type SeckillConfig struct {
-	ProductID    uint      `json:"product_id"`     // 商品ID
-	TotalStock   int       `json:"total_stock"`    // 总库存
-	StartTime    time.Time `json:"start_time"`     // 开始时间
-	EndTime      time.Time `json:"end_time"`       // 结束时间
-	LimitPerUser int       `json:"limit_per_user"` // 每个用户限制数量
-}
-
 // SeckillRequest 秒杀请求
 type SeckillRequest struct {
 	ProductID uint `json:"product_id" binding:"required"`
@@ -61,26 +53,22 @@ type SeckillResponse struct {
 	CreatedAt   string  `json:"created_at"`
 }
 
-// SeckillWithRedis 使用Redis实现秒杀
-// 优点：高性能、原子操作、流量削峰
+// SeckillWithRedis 使用Redis + RabbitMQ实现异步秒杀
 // 流程：
 // 1. Redis预加载库存（减少数据库压力）
 // 2. 用户请求先检查库存（内存级别，快速判断）
 // 3. 使用Lua脚本原子扣减库存（保证原子性，防止超卖）
-// 4. 扣减成功则发送消息到MQ，异步创建订单
+// 4. 扣减成功则发送消息到MQ，立即返回“排队中”
 func (s *SeckillService) SeckillWithRedis(ctx context.Context, userID uint, req *SeckillRequest) (*SeckillResponse, error) {
 	productID := req.ProductID
 
-	// 1. 获取商品信息
+	// 1. 获取商品信息 (为了检查状态和价格)
 	product, err := s.productRepo.GetByID(productID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. 检查秒杀活动状态
-	now := time.Now()
-	// 这里应该从Redis获取活动配置
-	// 简化处理：直接检查商品状态
+	// 2. 检查商品状态
 	if product.Status != 1 {
 		return nil, errors.New("商品已下架")
 	}
@@ -96,53 +84,109 @@ func (s *SeckillService) SeckillWithRedis(ctx context.Context, userID uint, req 
 	}
 
 	// 4. 使用Lua脚本原子扣减Redis库存
+	// 注意：这里只是扣减Redis里的缓存库存，数据库库存稍后由消费者扣减
 	result, err := decrStockWithLua(ctx, productID, 1)
 	if err != nil {
 		return nil, fmt.Errorf("库存扣减失败: %w", err)
 	}
 
 	// 5. 库存不足
+	// Lua脚本返回的是扣减后的剩余库存，如果小于0说明库存不够
 	if result < 0 {
 		return nil, ErrSeckillStockZero
 	}
 
-	// 6. 记录用户秒杀状态
+	// 6. 记录用户秒杀状态 (防止重复秒杀)
 	redis.Client.SAdd(ctx, userKey, userID)
 	redis.Client.Expire(ctx, userKey, 24*time.Hour)
 
-	// 7. 生成订单号
-	orderNo := generateOrderNo()
-	nowStr := now.Format("2006-01-02 15:04:05")
-
-	// 8. 创建订单（数据库操作）
-	order := &model.Order{
-		OrderNo:     orderNo,
-		UserID:      userID,
-		ProductID:   product.ID,
-		ProductName: product.Name,
-		Quantity:    1,
-		TotalPrice:  product.Price,
-		Status:      1, // 待支付
+	// 7. 构造秒杀消息
+	msg := &rabbitmq.SeckillMessage{
+		UserID:    userID,
+		ProductID: productID,
+		RequestID: time.Now().UnixNano(),
 	}
 
-	if err := s.orderRepo.Create(order); err != nil {
-		// 创建订单失败，回滚库存
+	// 8. 发送消息到 RabbitMQ (异步下单)
+	if err := rabbitmq.PublishSeckillMessage(ctx, msg); err != nil {
+		// ⚠️ 关键点：如果发消息失败，必须回滚 Redis 库存和用户状态
+		log.Printf("发送秒杀消息失败: %v", err)
+
+		// 回滚库存
 		incrStock(ctx, productID, 1)
-		log.Printf("创建订单失败，回滚库存: %v", err)
+		// 删除用户秒杀记录
+		redis.Client.Del(ctx, userKey)
+
 		return nil, ErrSystemBusy
 	}
 
-	// 9. 同步库存到数据库
-	_ = syncStockToDB(ctx, productID)
-
+	// 9. 立即返回结果
+	// 注意：此时订单还没真正创建，OrderNo 为空，前端应提示“排队中”或轮询查询
 	return &SeckillResponse{
-		OrderNo:     orderNo,
+		OrderNo:     "", // 异步处理，暂无订单号
 		ProductID:   product.ID,
 		ProductName: product.Name,
 		Price:       product.Price,
 		Quantity:    1,
-		CreatedAt:   nowStr,
+		CreatedAt:   time.Now().Format("2006-01-02 15:04:05"),
 	}, nil
+}
+
+// ProcessSeckillOrders 处理秒杀订单（MQ消费者）
+// 这是一个后台任务，会持续运行
+func (s *SeckillService) ProcessSeckillOrders() {
+	log.Println("🔥 秒杀订单消费者已启动，等待消息...")
+
+	// 调用 rabbitmq 包里的消费函数
+	rabbitmq.ConsumeSeckillMessage(func(msg *rabbitmq.SeckillMessage) error {
+		log.Printf("📥 收到秒杀请求: UserID=%d, ProductID=%d, RequestID=%d", msg.UserID, msg.ProductID, msg.RequestID)
+
+		ctx := context.Background()
+
+		// 1. 去重检查（使用 Redis 记录用户是否已秒杀过该商品）
+		dedupKey := fmt.Sprintf("seckill:processed:%d:%d", msg.UserID, msg.ProductID)
+		exists, err := redis.Client.Exists(ctx, dedupKey).Result()
+		if err == nil && exists > 0 {
+			log.Printf("⚠️ 订单已处理过，跳过: UserID=%d, ProductID=%d", msg.UserID, msg.ProductID)
+			return nil // 已处理过，跳过
+		}
+
+		// 2. 获取商品信息 (为了拿到最新价格和名称)
+		product, err := s.productRepo.GetByID(msg.ProductID)
+		if err != nil {
+			log.Printf("获取商品失败: %v", err)
+			return err // 返回错误，MQ会重试
+		}
+
+		// 3. 生成订单号
+		orderNo := generateOrderNo()
+
+		// 4. 构造订单对象
+		order := &model.Order{
+			OrderNo:     orderNo,
+			UserID:      msg.UserID,
+			ProductID:   msg.ProductID,
+			ProductName: product.Name,
+			Quantity:    1,
+			TotalPrice:  product.Price,
+			Status:      1, // 待支付
+			PayType:     1,
+		}
+
+		// 5. 写入数据库 (真正的落库操作)
+		// OrderRepo.Create 里面包含了事务：创建订单 + 扣减数据库库存
+		if err := s.orderRepo.Create(order); err != nil {
+			log.Printf("❌ 创建订单失败: %v", err)
+			return err // 返回错误，MQ会重试
+		}
+
+		// 6. 标记为已处理（防止重复消费）
+		redis.Client.Set(ctx, dedupKey, orderNo, 24*time.Hour)
+
+		log.Printf("✅ 秒杀订单创建成功: %s", orderNo)
+
+		return nil
+	})
 }
 
 // decrStockWithLua 使用Lua脚本原子扣减库存
@@ -158,7 +202,7 @@ func decrStockWithLua(ctx context.Context, productID uint, quantity int) (int, e
 		stock = tonumber(stock)
 		local quantity = tonumber(ARGV[1])
 		if stock < quantity then
-			return 0
+			return -1
 		end
 		redis.call('DECRBY', KEYS[1], quantity)
 		return stock - quantity
@@ -172,54 +216,14 @@ func decrStockWithLua(ctx context.Context, productID uint, quantity int) (int, e
 	return result, nil
 }
 
-// incrStock 增加库存
+// incrStock 增加库存 (用于回滚)
 func incrStock(ctx context.Context, productID uint, quantity int) error {
 	key := fmt.Sprintf("gomall:stock:%d", productID)
 	return redis.Client.IncrBy(ctx, key, int64(quantity)).Err()
 }
 
-// syncStockToDB 同步库存到数据库
-func syncStockToDB(ctx context.Context, productID uint) error {
-	key := fmt.Sprintf("gomall:stock:%d", productID)
-	stock, err := redis.Client.Get(ctx, key).Int()
-	if err != nil {
-		return err
-	}
-
-	// 更新商品库存
-	product, err := (&repository.ProductRepository{}).GetByID(productID)
-	if err != nil {
-		return err
-	}
-
-	product.Stock = stock
-	return (&repository.ProductRepository{}).Update(product)
-}
-
 // InitSeckillStock 初始化秒杀库存到Redis
-// 在秒杀开始前调用，将库存预加载到Redis
 func (s *SeckillService) InitSeckillStock(ctx context.Context, productID uint, stock int) error {
 	key := fmt.Sprintf("gomall:stock:%d", productID)
 	return redis.Client.Set(ctx, key, stock, 0).Err()
 }
-
-// LoadStockFromDB 从数据库加载库存到Redis
-func (s *SeckillService) LoadStockFromDB(ctx context.Context, productID uint) error {
-	product, err := s.productRepo.GetByID(productID)
-	if err != nil {
-		return err
-	}
-
-	return s.InitSeckillStock(ctx, productID, product.Stock)
-}
-
-// ProcessSeckillOrders 处理秒杀订单（MQ消费者）
-// 从MQ获取秒杀消息，异步创建订单
-func (s *SeckillService) ProcessSeckillOrders() {
-	// 这里应该从RabbitMQ消费消息
-	// 由于rabbitmq包还未导入，这里留空实现
-	log.Println("秒杀订单处理服务已启动")
-}
-
-// Remove the RateLimiter since it has type conflicts and is not essential
-// The seckill functionality works without it

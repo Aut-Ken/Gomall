@@ -90,3 +90,15 @@ INSERT INTO `stocks` (`product_id`, `total_stock`, `lock_stock`, `sold_stock`) V
 (2, 50, 0, 0),
 (3, 200, 0, 0),
 (4, 80, 0, 0);
+
+CREATE TABLE carts (
+      id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      user_id BIGINT UNSIGNED NOT NULL,
+      product_id BIGINT UNSIGNED NOT NULL,
+      quantity INT NOT NULL DEFAULT 1,
+      created_at DATETIME,
+      updated_at DATETIME,
+      deleted_at DATETIME,
+      INDEX idx_user_id (user_id),
+      INDEX idx_product_id (product_id)
+  );
