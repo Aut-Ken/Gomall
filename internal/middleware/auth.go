@@ -74,3 +74,60 @@ func GetUsername(c *gin.Context) string {
 	}
 	return username.(string)
 }
+
+// AdminAuthMiddleware 管理员权限认证中间件
+// 用于保护需要管理员权限才能访问的接口
+func AdminAuthMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 先执行登录认证
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"code": 401,
+				"msg":  "未登录",
+			})
+			c.Abort()
+			return
+		}
+
+		parts := strings.SplitN(authHeader, " ", 2)
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"code": 401,
+				"msg":  "Token格式错误",
+			})
+			c.Abort()
+			return
+		}
+
+		tokenString := parts[1]
+
+		jwtUtil := jwt.NewJWT()
+		claims, err := jwtUtil.ParseToken(tokenString)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"code": 401,
+				"msg":  "Token无效或已过期",
+			})
+			c.Abort()
+			return
+		}
+
+		// 将用户信息存入上下文
+		c.Set("user_id", claims.UserID)
+		c.Set("username", claims.Username)
+		c.Set("email", claims.Email)
+
+		// 检查用户角色是否为管理员
+		if claims.UserID != 1 { // 假设 user_id=1 为管理员，实际应查询数据库
+			c.JSON(http.StatusForbidden, gin.H{
+				"code": 403,
+				"msg":  "权限不足，需要管理员权限",
+			})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}

@@ -1,11 +1,14 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"gomall/internal/model"
+	"gomall/internal/rabbitmq"
 	"gomall/internal/repository"
 	"gomall/pkg/jwt"
 	"gomall/pkg/password"
+	"log"
 	"time"
 
 	"gorm.io/gorm"
@@ -327,8 +330,59 @@ type OrderResponse struct {
 	CreatedAt   string  `json:"created_at"`
 }
 
-// CreateOrder 创建订单
+// CreateOrder 创建订单（异步模式）
+// 通过 RabbitMQ 发送订单消息，由消费者异步创建订单，实现流量削峰
 func (s *OrderService) CreateOrder(userID uint, req *CreateOrderRequest) (*OrderResponse, error) {
+	// 获取商品信息
+	product, err := s.productRepo.GetByID(req.ProductID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 检查商品状态
+	if product.Status != 1 {
+		return nil, errors.New("商品已下架")
+	}
+
+	// 检查库存
+	if product.Stock < req.Quantity {
+		return nil, repository.ErrInsufficientStock
+	}
+
+	// 生成订单号
+	orderNo := generateOrderNo()
+
+	// 构建订单消息
+	orderMsg := &rabbitmq.OrderMessage{
+		OrderNo:     orderNo,
+		UserID:      userID,
+		ProductID:   product.ID,
+		ProductName: product.Name,
+		Quantity:    req.Quantity,
+		TotalPrice:  product.Price * float64(req.Quantity),
+	}
+
+	// 发送订单消息到 RabbitMQ（异步处理）
+	if err := rabbitmq.PublishOrderMessage(context.Background(), orderMsg); err != nil {
+		return nil, errors.New("订单提交失败，请稍后重试")
+	}
+
+	// 返回订单信息（订单状态为"处理中"）
+	return &OrderResponse{
+		ID:          0, // 异步创建，暂无数据库ID
+		OrderNo:     orderNo,
+		ProductID:   product.ID,
+		ProductName: product.Name,
+		Quantity:    req.Quantity,
+		TotalPrice:  orderMsg.TotalPrice,
+		Status:      0, // 0: 处理中
+		PayType:     1,
+		CreatedAt:   time.Now().Format("2006-01-02 15:04:05"),
+	}, nil
+}
+
+// CreateOrderSync 同步创建订单（保留原有逻辑，用于消费者调用）
+func (s *OrderService) CreateOrderSync(userID uint, req *CreateOrderRequest) (*OrderResponse, error) {
 	// 获取商品信息
 	product, err := s.productRepo.GetByID(req.ProductID)
 	if err != nil {
@@ -472,4 +526,31 @@ func randomString(length int) string {
 	}
 	time.Sleep(time.Nanosecond) // 确保不同调用产生不同随机数
 	return string(result)
+}
+
+// StartOrderConsumer 启动订单消费者
+// 从 RabbitMQ 消费订单消息，异步创建订单
+func (s *OrderService) StartOrderConsumer() {
+	log.Println("订单消费者已启动")
+
+	// 使用 rabbitmq 包的消费者
+	rabbitmq.ConsumeOrderMessage(func(msg *rabbitmq.OrderMessage) error {
+		log.Printf("收到订单消息: %s", msg.OrderNo)
+
+		// 构建创建订单请求
+		req := &CreateOrderRequest{
+			ProductID: msg.ProductID,
+			Quantity:  msg.Quantity,
+		}
+
+		// 调用同步创建订单方法
+		_, err := s.CreateOrderSync(msg.UserID, req)
+		if err != nil {
+			log.Printf("订单创建失败: %s, 错误: %v", msg.OrderNo, err)
+			return err
+		}
+
+		log.Printf("订单创建成功: %s", msg.OrderNo)
+		return nil
+	})
 }

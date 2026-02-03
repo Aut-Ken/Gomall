@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strconv"
 
 	"gomall/internal/middleware"
 	"gomall/internal/service"
@@ -84,10 +85,10 @@ func (h *SeckillHandler) Seckill(c *gin.Context) {
 // @Success 200 {object} map[string]interface{}
 // @Router /api/seckill/init [post]
 func (h *SeckillHandler) InitStock(c *gin.Context) {
-	productID := c.Query("product_id")
-	stock := c.Query("stock")
+	productIDStr := c.Query("product_id")
+	stockStr := c.Query("stock")
 
-	if productID == "" || stock == "" {
+	if productIDStr == "" || stockStr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"code": 400,
 			"msg":  "参数错误",
@@ -95,13 +96,15 @@ func (h *SeckillHandler) InitStock(c *gin.Context) {
 		return
 	}
 
-	// 这里应该添加管理员权限验证
-	// ...
+	// 将字符串转换为对应的数字类型
+	productID, _ := strconv.ParseUint(productIDStr, 10, 64)
+	stock, _ := strconv.Atoi(stockStr)
 
-	if err := h.seckillService.InitSeckillStock(c.Request.Context(), 0, 0); err != nil {
+	// ✅ 使用转换后的真实参数进行初始化
+	if err := h.seckillService.InitSeckillStock(c.Request.Context(), uint(productID), stock); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"code": 500,
-			"msg":  "初始化失败",
+			"msg":  "初始化失败: " + err.Error(),
 		})
 		return
 	}
@@ -109,5 +112,9 @@ func (h *SeckillHandler) InitStock(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"msg":  "初始化成功",
+		"data": gin.H{
+			"product_id": productID,
+			"stock":      stock,
+		},
 	})
 }

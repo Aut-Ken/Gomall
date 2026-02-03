@@ -13,11 +13,11 @@ import (
 )
 
 var (
-	ErrSeckillStart      = errors.New("秒杀活动未开始")
-	ErrSeckillEnd        = errors.New("秒杀活动已结束")
-	ErrSeckillRepeat     = errors.New("请勿重复秒杀")
-	ErrSeckillStockZero  = errors.New("商品已售罄")
-	ErrSystemBusy        = errors.New("系统繁忙，请稍后重试")
+	ErrSeckillStart     = errors.New("秒杀活动未开始")
+	ErrSeckillEnd       = errors.New("秒杀活动已结束")
+	ErrSeckillRepeat    = errors.New("请勿重复秒杀")
+	ErrSeckillStockZero = errors.New("商品已售罄")
+	ErrSystemBusy       = errors.New("系统繁忙，请稍后重试")
 )
 
 // SeckillService 秒杀服务
@@ -39,11 +39,11 @@ func NewSeckillService() *SeckillService {
 
 // SeckillConfig 秒杀活动配置
 type SeckillConfig struct {
-	ProductID     uint          `json:"product_id"`     // 商品ID
-	TotalStock    int           `json:"total_stock"`    // 总库存
-	StartTime     time.Time     `json:"start_time"`     // 开始时间
-	EndTime       time.Time     `json:"end_time"`       // 结束时间
-	LimitPerUser  int           `json:"limit_per_user"` // 每个用户限制数量
+	ProductID    uint      `json:"product_id"`     // 商品ID
+	TotalStock   int       `json:"total_stock"`    // 总库存
+	StartTime    time.Time `json:"start_time"`     // 开始时间
+	EndTime      time.Time `json:"end_time"`       // 结束时间
+	LimitPerUser int       `json:"limit_per_user"` // 每个用户限制数量
 }
 
 // SeckillRequest 秒杀请求
@@ -53,12 +53,12 @@ type SeckillRequest struct {
 
 // SeckillResponse 秒杀响应
 type SeckillResponse struct {
-	OrderNo    string  `json:"order_no"`
-	ProductID  uint    `json:"product_id"`
-	ProductName string `json:"product_name"`
-	Price      float64 `json:"price"`
-	Quantity   int     `json:"quantity"`
-	CreatedAt  string  `json:"created_at"`
+	OrderNo     string  `json:"order_no"`
+	ProductID   uint    `json:"product_id"`
+	ProductName string  `json:"product_name"`
+	Price       float64 `json:"price"`
+	Quantity    int     `json:"quantity"`
+	CreatedAt   string  `json:"created_at"`
 }
 
 // SeckillWithRedis 使用Redis实现秒杀
@@ -102,7 +102,7 @@ func (s *SeckillService) SeckillWithRedis(ctx context.Context, userID uint, req 
 	}
 
 	// 5. 库存不足
-	if result <= 0 {
+	if result < 0 {
 		return nil, ErrSeckillStockZero
 	}
 

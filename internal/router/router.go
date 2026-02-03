@@ -13,6 +13,7 @@ func Setup(r *gin.Engine) {
 	userHandler := api.NewUserHandler()
 	productHandler := api.NewProductHandler()
 	orderHandler := api.NewOrderHandler()
+	seckillHandler := api.NewSeckillHandler() // 已初始化
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -35,11 +36,11 @@ func Setup(r *gin.Engine) {
 		// 商品模块（部分需要登录）
 		productGroup := apiGroup.Group("/product")
 		{
-			productGroup.GET("", productHandler.List)       // 获取商品列表（无需登录）
-			productGroup.GET("/:id", productHandler.Get)    // 获取商品详情（无需登录）
+			productGroup.GET("", productHandler.List)    // 获取商品列表（无需登录）
+			productGroup.GET("/:id", productHandler.Get) // 获取商品详情（无需登录）
 
-			// 以下接口需要登录
-			productGroup.Use(middleware.AuthMiddleware())
+			// 以下接口需要管理员权限
+			productGroup.Use(middleware.AdminAuthMiddleware())
 			productGroup.POST("", productHandler.Create)       // 创建商品
 			productGroup.PUT("/:id", productHandler.Update)    // 更新商品
 			productGroup.DELETE("/:id", productHandler.Delete) // 删除商品
@@ -49,11 +50,25 @@ func Setup(r *gin.Engine) {
 		orderGroup := apiGroup.Group("/order")
 		orderGroup.Use(middleware.AuthMiddleware())
 		{
-			orderGroup.POST("", orderHandler.Create)              // 创建订单
-			orderGroup.GET("", orderHandler.List)                 // 获取订单列表
-			orderGroup.GET("/:order_no", orderHandler.Get)        // 获取订单详情
-			orderGroup.POST("/:order_no/pay", orderHandler.Pay)   // 支付订单
+			orderGroup.POST("", orderHandler.Create)                  // 创建订单
+			orderGroup.GET("", orderHandler.List)                     // 获取订单列表
+			orderGroup.GET("/:order_no", orderHandler.Get)            // 获取订单详情
+			orderGroup.POST("/:order_no/pay", orderHandler.Pay)       // 支付订单
 			orderGroup.POST("/:order_no/cancel", orderHandler.Cancel) // 取消订单
+		}
+
+		// --- 新增：秒杀模块 ---
+		seckillGroup := apiGroup.Group("/seckill")
+		seckillGroup.Use(middleware.AuthMiddleware())
+		{
+			seckillGroup.POST("", seckillHandler.Seckill) // 秒杀接口: POST /api/seckill
+		}
+
+		// 秒杀管理（需要管理员权限）
+		seckillAdminGroup := apiGroup.Group("/seckill")
+		seckillAdminGroup.Use(middleware.AdminAuthMiddleware())
+		{
+			seckillAdminGroup.POST("/init", seckillHandler.InitStock) // 初始化库存: POST /api/seckill/init
 		}
 
 		// 用户中心（需要登录）

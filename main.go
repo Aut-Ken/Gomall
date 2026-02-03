@@ -72,6 +72,12 @@ func main() {
 		seckillSvc.ProcessSeckillOrders()
 	}()
 
+	// 9. 启动订单消费者（如果RabbitMQ可用）
+	go func() {
+		orderSvc := service.NewOrderService()
+		orderSvc.StartOrderConsumer()
+	}()
+
 	// 9. 获取服务配置
 	appConfig := config.GetApp()
 	host := appConfig.GetString("host")

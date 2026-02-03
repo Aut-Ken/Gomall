@@ -140,6 +140,7 @@ type OrderMessage struct {
 	OrderNo     string    `json:"order_no"`
 	UserID      uint      `json:"user_id"`
 	ProductID   uint      `json:"product_id"`
+	ProductName string    `json:"product_name"`
 	Quantity    int       `json:"quantity"`
 	TotalPrice  float64   `json:"total_price"`
 	CreatedAt   time.Time `json:"created_at"`
