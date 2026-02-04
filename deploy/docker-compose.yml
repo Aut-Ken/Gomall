@@ -90,10 +90,12 @@ services:
     container_name: gomall-jaeger
     restart: unless-stopped
     ports:
-      - "16686:16686"
-      - "6831:6831/udp"
-      - "6832:6832/udp"
-      - "14268:14268"
+      - "16686:16686"       # Jaeger UI
+      - "4317:4317"          # OTLP gRPC 接收器
+      - "4318:4318"          # OTLP HTTP 接收器
+      - "6831:6831/udp"      # Jaeger thrift UDP
+      - "6832:6832/udp"      # Jaeger thrift UDP (compact)
+      - "14268:14268"        # Collector HTTP
     environment:
       COLLECTOR_OTLP_ENABLED: true
 

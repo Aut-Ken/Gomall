@@ -37,6 +37,9 @@
 |------|------|
 | Docker | 容器化部署 |
 | Docker Compose | 本地开发环境 |
+| OpenTelemetry | 链路追踪标准 |
+| Jaeger (OTLP gRPC) | 分布式追踪系统 |
+| golang.org/x/time | 本地限流 |
 
 ---
 
@@ -53,8 +56,9 @@ gomall/
 │   └── mysql/
 │       └── init.sql        # 数据库初始化脚本
 ├── internal/               # 内部业务代码
-│   ├── api/                # HTTP 接口层 (Gin Handler)
-│   │   ├── handler.go      # 用户、商品、订单处理器
+│   ├── api/                # HTTP Handlers (Controllers)
+│   │   ├── handler.go       # 用户、商品、订单处理器
+│   │   ├── cart_handler.go  # 购物车处理器
 │   │   └── seckill_handler.go  # 秒杀处理器
 │   ├── config/             # 配置加载
 │   │   └── config.go
@@ -64,7 +68,10 @@ gomall/
 │   │   ├── grpc.go         # gRPC 服务实现
 │   │   └── proto/          # Protobuf 定义
 │   ├── middleware/         # 中间件
-│   │   └── auth.go         # JWT 认证中间件
+│   │   ├── auth.go         # JWT 认证中间件
+│   │   └── ratelimit.go    # 限流中间件
+│   ├── tracing/            # 链路追踪 (OpenTelemetry/Jaeger)
+│   │   └── tracing.go
 │   ├── model/              # 数据模型 (GORM)
 │   │   └── model.go
 │   ├── rabbitmq/           # RabbitMQ 消息队列
@@ -76,7 +83,7 @@ gomall/
 │   ├── router/             # 路由配置
 │   │   └── router.go
 │   └── service/            # 业务逻辑层
-│       ├── service.go      # 用户、商品、订单服务
+│       ├── service.go      # 用户、商品、订单、购物车服务
 │       └── seckill.go      # 秒杀服务
 ├── pkg/                    # 公共工具库
 │   ├── jwt/                # JWT 工具
@@ -184,11 +191,22 @@ make docker-run
 | POST | /api/order/:order_no/pay | 支付订单 | - (需登录) |
 | POST | /api/order/:order_no/cancel | 取消订单 | - (需登录) |
 
+### 购物车模块
+
+| 方法 | 路径 | 说明 | 参数 |
+|------|------|------|------|
+| POST | /api/cart | 添加商品到购物车 | product_id, quantity (需登录) |
+| GET | /api/cart | 获取购物车列表 | - (需登录) |
+| PUT | /api/cart | 更新购物车商品数量 | product_id, quantity (需登录) |
+| DELETE | /api/cart | 删除购物车商品 | product_id (需登录) |
+| DELETE | /api/cart/clear | 清空购物车 | - (需登录) |
+
 ### 秒杀模块
 
 | 方法 | 路径 | 说明 | 参数 |
 |------|------|------|------|
 | POST | /api/seckill | 秒杀接口 | product_id (需登录) |
+| POST | /api/seckill/init | 初始化秒杀库存 | product_id, stock (需管理员) |
 
 ---
 
@@ -232,6 +250,21 @@ make help         # 显示帮助信息
 - **Redis 层面**：Lua 脚本原子操作
 - **消息队列**：异步削峰，流量控制
 
+### 4. 限流与熔断
+- **本地限流**：基于 golang.org/x/time/rate 实现 IP 级别限流
+- **分布式限流**：基于 Redis 实现滑动窗口算法，支持多实例共享
+- **限流配置**：
+  - 全局：1000 QPS，突发 2000
+  - API：100 QPS，突发 200
+  - 秒杀：5 QPS，突发 10
+  - 登录：10 QPS，突发 20
+
+### 5. 链路追踪 (OpenTelemetry + Jaeger)
+- **集成 OpenTelemetry**：标准化的链路追踪方案
+- **OTLP gRPC 导出器**：通过 gRPC 协议将追踪数据发送到 Jaeger
+- **Jaeger 可视化**：支持请求链路、延迟分析、错误追踪
+- **自定义属性**：支持 UserID、ProductID、OrderNo 等业务标签
+
 ---
 
 ## 🐳 Docker 部署
@@ -257,7 +290,9 @@ docker-compose down
 | MySQL | 3306 |
 | Redis | 6379 |
 | RabbitMQ | 5672 (AMQP), 15672 (管理) |
-| Jaeger (可选) | 16686 |
+| Jaeger UI | 16686 |
+| Jaeger OTLP gRPC | 4317 |
+| Jaeger OTLP HTTP | 4318 |
 
 ---
 
@@ -273,14 +308,18 @@ docker-compose down
   - [x] Lua 脚本实现库存原子扣减
   - [x] RabbitMQ 异步创建订单
   - [x] 解决超卖问题
-- [ ] Phase 3: 微服务拆分 (待实现)
+- [x] Phase 3: 购物车模块
+  - [x] 添加商品到购物车
+  - [x] 获取/更新/删除购物车商品
+  - [x] 清空购物车
+- [x] Phase 4: 稳定性与部署
+  - [x] 接入 Jaeger/OpenTelemetry 链路追踪
+  - [x] Docker Compose 一键部署
+  - [x] 限流中间件 (IP + Redis 分布式限流)
+- [ ] Phase 5: 微服务拆分 (待实现)
   - [ ] 拆分为 User/Product/Order/Stock 独立服务
   - [ ] 引入 gRPC 进行服务间通信
   - [ ] 使用 Consul 进行服务注册与发现
-- [ ] Phase 4: 稳定性与部署 (待实现)
-  - [ ] 接入 Jaeger 链路追踪
-  - [ ] Docker Compose 一键部署
-  - [ ] Sentinel 限流与熔断
 
 ---
 

@@ -13,8 +13,8 @@ func Setup(r *gin.Engine) {
 	userHandler := api.NewUserHandler()
 	productHandler := api.NewProductHandler()
 	orderHandler := api.NewOrderHandler()
-	seckillHandler := api.NewSeckillHandler()    // 已初始化
-	cartHandler := api.NewCartHandler()          // 购物车处理器
+	seckillHandler := api.NewSeckillHandler()
+	cartHandler := api.NewCartHandler()
 
 	// 健康检查
 	r.GET("/health", func(c *gin.Context) {
@@ -31,7 +31,8 @@ func Setup(r *gin.Engine) {
 		userGroup := apiGroup.Group("/user")
 		{
 			userGroup.POST("/register", userHandler.Register)
-			userGroup.POST("/login", userHandler.Login)
+			// 登录接口添加限流
+			userGroup.POST("/login", middleware.LoginRateLimit(), userHandler.Login)
 		}
 
 		// 商品模块（部分需要登录）
@@ -60,7 +61,7 @@ func Setup(r *gin.Engine) {
 
 		// --- 新增：秒杀模块 ---
 		seckillGroup := apiGroup.Group("/seckill")
-		seckillGroup.Use(middleware.AuthMiddleware())
+		seckillGroup.Use(middleware.AuthMiddleware(), middleware.SeckillRateLimit())
 		{
 			seckillGroup.POST("", seckillHandler.Seckill) // 秒杀接口: POST /api/seckill
 		}

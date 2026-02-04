@@ -60,3 +60,13 @@ func GetRabbitMQ() *viper.Viper {
 func GetGRPCConfig() *viper.Viper {
 	return Config.Sub("grpc")
 }
+
+// GetTracing 获取链路追踪配置
+func GetTracing() *viper.Viper {
+	return Config.Sub("tracing")
+}
+
+// GetRateLimit 获取限流配置
+func GetRateLimit() *viper.Viper {
+	return Config.Sub("ratelimit")
+}

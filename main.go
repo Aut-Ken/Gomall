@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -14,6 +15,7 @@ import (
 	redispkg "gomall/internal/redis"
 	"gomall/internal/router"
 	"gomall/internal/service"
+	"gomall/internal/tracing"
 
 	"github.com/gin-gonic/gin"
 )
@@ -54,6 +56,25 @@ func main() {
 	} else {
 		defer rabbitmq.Close()
 		log.Println("RabbitMQ连接成功")
+	}
+
+	// 4.1 初始化链路追踪（可选）
+	tracingConfig := config.GetTracing()
+	if tracingConfig.GetBool("enabled") {
+		log.Println("正在初始化链路追踪...")
+		serviceName := tracingConfig.GetString("service_name")
+		jaegerEndpoint := tracingConfig.GetString("jaeger_endpoint")
+		shutdown, err := tracing.InitTracing(serviceName, jaegerEndpoint)
+		if err != nil {
+			log.Printf("警告: 链路追踪初始化失败: %v", err)
+		} else {
+			defer func() {
+				if err := shutdown(context.Background()); err != nil {
+					log.Printf("链路追踪关闭失败: %v", err)
+				}
+			}()
+			log.Println("链路追踪初始化成功")
+		}
 	}
 
 	// 5. 设置Gin运行模式
