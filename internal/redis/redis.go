@@ -45,6 +45,16 @@ func Close() error {
 	return nil
 }
 
+// Ping 检查Redis连接
+func Ping() error {
+	if Client == nil {
+		return fmt.Errorf("Redis未初始化")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return Client.Ping(ctx).Err()
+}
+
 // GetRedisConfig 获取Redis配置
 func GetRedisConfig() *viper.Viper {
 	return config.GetRedis()

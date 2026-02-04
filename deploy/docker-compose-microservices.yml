@@ -1,0 +1,142 @@
+# Gomall 微服务部署配置
+# 使用方式: docker-compose -f docker-compose-microservices.yml up -d
+
+services:
+  # API 网关
+  gateway:
+    build: .
+    container_name: gomall-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - GOMALL_APP_MODE=release
+      - GOMALL_REGISTRY_TYPE=memory
+      - GOMALL_GATEWAY_ENABLED=true
+    depends_on:
+      - user-service
+      - product-service
+      - order-service
+      - stock-service
+    networks:
+      - gomall-network
+    restart: unless-stopped
+
+  # 用户服务
+  user-service:
+    build: .
+    container_name: gomall-user-service
+    ports:
+      - "8081:8081"
+    environment:
+      - GOMALL_APP_MODE=release
+      - GOMALL_REGISTRY_TYPE=memory
+      - GOMALL_SERVICES_USER_ENABLED=true
+      - GOMALL_SERVICES_USER_HOST=0.0.0.0
+      - GOMALL_SERVICES_USER_PORT=8081
+    networks:
+      - gomall-network
+    restart: unless-stopped
+
+  # 商品服务
+  product-service:
+    build: .
+    container_name: gomall-product-service
+    ports:
+      - "8082:8082"
+    environment:
+      - GOMALL_APP_MODE=release
+      - GOMALL_REGISTRY_TYPE=memory
+      - GOMALL_SERVICES_PRODUCT_ENABLED=true
+      - GOMALL_SERVICES_PRODUCT_HOST=0.0.0.0
+      - GOMALL_SERVICES_PRODUCT_PORT=8082
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - gomall-network
+    restart: unless-stopped
+
+  # 订单服务
+  order-service:
+    build: .
+    container_name: gomall-order-service
+    ports:
+      - "8083:8083"
+    environment:
+      - GOMALL_APP_MODE=release
+      - GOMALL_REGISTRY_TYPE=memory
+      - GOMALL_SERVICES_ORDER_ENABLED=true
+      - GOMALL_SERVICES_ORDER_HOST=0.0.0.0
+      - GOMALL_SERVICES_ORDER_PORT=8083
+    depends_on:
+      - mysql
+      - redis
+      - rabbitmq
+    networks:
+      - gomall-network
+    restart: unless-stopped
+
+  # 库存服务
+  stock-service:
+    build: .
+    container_name: gomall-stock-service
+    ports:
+      - "8084:8084"
+    environment:
+      - GOMALL_APP_MODE=release
+      - GOMALL_REGISTRY_TYPE=memory
+      - GOMALL_SERVICES_STOCK_ENABLED=true
+      - GOMALL_SERVICES_STOCK_HOST=0.0.0.0
+      - GOMALL_SERVICES_STOCK_PORT=8084
+    depends_on:
+      - redis
+    networks:
+      - gomall-network
+    restart: unless-stopped
+
+  # 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: gomall-mysql
+    environment:
+      - MYSQL_ROOT_PASSWORD=password
+      - MYSQL_DATABASE=Gomall
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./deploy/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - gomall-network
+    restart: unless-stopped
+
+  # Redis
+  redis:
+    image: redis:7.0-alpine
+    container_name: gomall-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - gomall-network
+    restart: unless-stopped
+
+  # RabbitMQ
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: gomall-rabbitmq
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - gomall-network
+    restart: unless-stopped
+
+networks:
+  gomall-network:
+    driver: bridge
+
+volumes:
+  mysql-data:

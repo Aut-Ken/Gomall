@@ -70,3 +70,16 @@ func GetTracing() *viper.Viper {
 func GetRateLimit() *viper.Viper {
 	return Config.Sub("ratelimit")
 }
+
+// GetLogger 获取日志配置
+func GetLogger() *viper.Viper {
+	return Config.Sub("logger")
+}
+
+// Reload 重新加载配置文件
+func Reload() error {
+	if Config == nil {
+		return fmt.Errorf("配置未初始化")
+	}
+	return Config.ReadInConfig()
+}

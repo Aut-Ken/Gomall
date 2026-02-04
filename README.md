@@ -1,6 +1,6 @@
 # 🛒 GoMall - 高并发分布式电商秒杀系统
 
-> 一个基于 Golang + Gin + GORM + MySQL + Redis + RabbitMQ + gRPC 构建的分布式电商平台。
+> 一个基于 Golang + Gin + GORM + MySQL + Redis + RabbitMQ + Prometheus + Swagger 构建的分布式电商平台。
 > 本项目旨在解决高并发场景下的"超卖"、"少卖"问题，并实践微服务架构拆分与治理。
 
 ## 📖 项目简介 (Introduction)
@@ -39,6 +39,9 @@
 | Docker Compose | 本地开发环境 |
 | OpenTelemetry | 链路追踪标准 |
 | Jaeger (OTLP gRPC) | 分布式追踪系统 |
+| Prometheus | 指标监控 |
+| Swagger | API 文档 |
+| Uber Zap | 结构化日志 |
 | golang.org/x/time | 本地限流 |
 
 ---
@@ -50,26 +53,42 @@ gomall/
 ├── cmd/                    # 程序入口
 │   └── main.go             # 主程序入口
 ├── conf/                   # 配置文件
-│   └── config.yaml         # 应用配置
+│   ├── config.yaml         # 默认配置
+│   ├── config-dev.yaml     # 开发环境配置
+│   └── config-prod.yaml    # 生产环境配置
 ├── deploy/                 # 部署配置
-│   ├── docker-compose.yml  # Docker Compose 配置
+│   ├── docker-compose.yml  # 单体模式 Docker Compose
+│   ├── docker-compose-microservices.yml  # 微服务模式 Docker Compose
 │   └── mysql/
 │       └── init.sql        # 数据库初始化脚本
+├── docs/                   # API 文档
+│   └── docs.go             # Swagger 文档
 ├── internal/               # 内部业务代码
 │   ├── api/                # HTTP Handlers (Controllers)
 │   │   ├── handler.go       # 用户、商品、订单处理器
 │   │   ├── cart_handler.go  # 购物车处理器
-│   │   └── seckill_handler.go  # 秒杀处理器
+│   │   ├── seckill_handler.go  # 秒杀处理器
+│   │   └── health_check.go # 健康检查处理器
 │   ├── config/             # 配置加载
 │   │   └── config.go
 │   ├── database/           # 数据库连接
 │   │   └── database.go
-│   ├── grpc/               # gRPC 服务
-│   │   ├── grpc.go         # gRPC 服务实现
-│   │   └── proto/          # Protobuf 定义
+│   ├── gateway/           # API 网关 (微服务模式)
+│   │   └── gateway.go
+│   ├── grpc/               # gRPC 服务 (预留)
+│   │   └── grpc.go         # gRPC 服务实现
+│   ├── logger/             # 结构化日志 (Uber Zap)
+│   │   └── logger.go
+│   ├── metrics/            # Prometheus 指标
+│   │   └── metrics.go
 │   ├── middleware/         # 中间件
 │   │   ├── auth.go         # JWT 认证中间件
-│   │   └── ratelimit.go    # 限流中间件
+│   │   ├── ratelimit.go    # 限流中间件
+│   │   ├── logger.go       # 请求日志中间件
+│   │   ├── metrics.go      # Prometheus 指标中间件
+│   │   └── error_handler.go # 统一错误处理
+│   ├── registry/            # 服务注册与发现
+│   │   └── registry.go
 │   ├── tracing/            # 链路追踪 (OpenTelemetry/Jaeger)
 │   │   └── tracing.go
 │   ├── model/              # 数据模型 (GORM)
@@ -90,6 +109,9 @@ gomall/
 │   │   └── jwt.go
 │   └── password/           # 密码加密
 │       └── password.go
+├── scripts/                # 运维脚本
+│   ├── backup.sh          # 数据库备份 (Linux/Mac)
+│   └── backup.bat         # 数据库备份 (Windows)
 ├── .gitignore
 ├── Dockerfile
 ├── docker-compose.yml
@@ -154,10 +176,39 @@ make docker-build
 make docker-run
 ```
 
-### 6. 访问服务
+### 6. 环境配置
 
-- **服务地址**: http://localhost:8080
-- **健康检查**: http://localhost:8080/health
+```bash
+# 开发环境（默认）
+go run main.go
+./app -env dev
+
+# 生产环境
+./app -env prod
+# 或指定配置文件
+./app -config conf/config-prod.yaml
+```
+
+### 7. 访问服务
+
+| 端点 | 说明 |
+|------|------|
+| http://localhost:8080 | 服务地址 |
+| http://localhost:8080/health | 健康检查 |
+| http://localhost:8080/ready | 就绪检查 |
+| http://localhost:8080/metrics | Prometheus 指标 |
+| http://localhost:8080/swagger/index.html | API 文档 |
+
+### 8. 配置热更新
+
+发送 SIGHUP 信号重新加载配置（不重启服务）：
+
+```bash
+# Linux/Mac
+kill -HUP <pid>
+
+# 查看日志确认配置已重载
+```
 
 ---
 
@@ -213,17 +264,142 @@ make docker-run
 ## 🔧 Makefile 命令
 
 ```bash
-make deps        # 下载依赖
-make build       # 编译项目
-make run         # 运行项目
-make stop        # 停止服务
-make clean       # 清理构建文件
-make test        # 运行测试
+make deps          # 下载依赖
+make build         # 编译项目
+make run           # 运行项目（开发环境）
+make run-prod      # 运行项目（生产环境）
+make stop          # 停止服务
+make clean         # 清理构建文件
+make test          # 运行测试
 make docker-build  # 构建Docker镜像
 make docker-run    # 启动Docker服务
 make docker-stop   # 停止Docker服务
-make logs         # 查看日志
-make help         # 显示帮助信息
+make logs          # 查看日志
+make backup        # 数据库备份
+make swag          # 生成 Swagger API 文档
+make help          # 显示帮助信息
+```
+
+---
+
+## 📊 监控与可观测性
+
+### 1. 健康检查端点
+
+| 端点 | 用途 |
+|------|------|
+| `/health` | 健康检查，检查所有依赖服务状态 |
+| `/ready` | 就绪检查，用于 K8s 就绪探针 |
+
+**响应示例：**
+```json
+// /health
+{
+  "status": "healthy",
+  "components": {
+    "database": "healthy",
+    "redis": "healthy",
+    "rabbitmq": "healthy"
+  }
+}
+```
+
+### 2. Prometheus 指标
+
+访问 `http://localhost:8080/metrics` 获取指标数据。
+
+**主要指标：**
+- `gomall_http_requests_total` - HTTP 请求总数
+- `gomall_http_request_duration_seconds` - 请求延迟
+- `gomall_orders_created_total` - 订单创建数
+- `gomall_seckill_requests_total` - 秒杀请求数
+- `gomall_seckill_success_total` - 秒杀成功数
+- `gomall_user_logins_total` - 用户登录数
+
+### 3. 结构化日志
+
+支持 JSON 格式日志，便于日志收集系统（ELK/Loki）解析。
+
+**日志配置（conf/config.yaml）：**
+```yaml
+logger:
+  level: "info"         # debug, info, warn, error
+  format: "json"        # json 或 console
+  output: "stdout"      # stdout 或 file
+```
+
+### 4. 数据库备份
+
+```bash
+# Linux/Mac
+./scripts/backup.sh /path/to/backups
+
+# Windows
+scripts\backup.bat
+
+# 定时任务（crontab）
+0 2 * * * /path/to/backup.sh /path/to/backups
+```
+
+---
+
+## 🏗️ 微服务架构
+
+### 服务拆分
+
+系统支持两种运行模式：
+
+**单体模式（默认）：** 所有功能运行在单一进程中
+
+**微服务模式：** 拆分为多个独立服务
+
+| 服务 | 端口 | 说明 |
+|------|------|------|
+| API Gateway | 8080 | 请求入口，统一路由 |
+| User Service | 8081 | 用户注册、登录、鉴权 |
+| Product Service | 8082 | 商品 CRUD |
+| Order Service | 8083 | 订单管理 |
+| Stock Service | 8084 | 库存管理、秒杀 |
+
+### 启动微服务模式
+
+```bash
+# 方式一：使用 Docker Compose
+docker-compose -f deploy/docker-compose-microservices.yml up -d
+
+# 方式二：独立启动各服务
+./app -service=user -port=8081
+./app -service=product -port=8082
+./app -service=order -port=8083
+./app -service=stock -port=8084
+./app -gateway -port=8080
+```
+
+### 服务注册与发现
+
+支持两种注册中心：
+
+- **内存注册中心** - 单机模式，无需额外依赖
+- **Redis 注册中心** - 分布式模式，支持多实例
+
+### 配置微服务
+
+```yaml
+registry:
+  type: "memory"  # 或 "redis"
+  host: "localhost"
+  port: 6379
+
+gateway:
+  enabled: true
+  port: 8080
+
+services:
+  user:
+    enabled: true
+    host: "0.0.0.0"
+    port: 8081
+  # ... 其他服务
 ```
 
 ---
@@ -312,14 +488,22 @@ docker-compose down
   - [x] 添加商品到购物车
   - [x] 获取/更新/删除购物车商品
   - [x] 清空购物车
-- [x] Phase 4: 稳定性与部署
+- [x] Phase 4: 稳定性与可观测性
   - [x] 接入 Jaeger/OpenTelemetry 链路追踪
   - [x] Docker Compose 一键部署
   - [x] 限流中间件 (IP + Redis 分布式限流)
-- [ ] Phase 5: 微服务拆分 (待实现)
-  - [ ] 拆分为 User/Product/Order/Stock 独立服务
-  - [ ] 引入 gRPC 进行服务间通信
-  - [ ] 使用 Consul 进行服务注册与发现
+  - [x] 健康检查端点 (/health, /ready)
+  - [x] Prometheus 指标监控
+  - [x] Uber Zap 结构化日志
+  - [x] Swagger API 文档
+  - [x] 多环境配置 (dev/prod)
+  - [x] 配置热更新 (SIGHUP)
+  - [x] 数据库备份脚本
+- [x] Phase 5: 微服务架构
+  - [x] 服务注册与发现 (内存 + Redis/Consul 支持)
+  - [x] API 网关
+  - [x] 微服务配置支持
+  - [x] Docker Compose 微服务部署配置
 
 ---
 

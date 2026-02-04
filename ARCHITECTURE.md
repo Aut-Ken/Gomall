@@ -41,9 +41,12 @@ graph TD
 - **Database ORM**: Gorm (MySQL interaction)
 - **Cache & kv Store**: Redis (Used for caching, distributed locks, and inventory counters)
 - **Message Queue**: RabbitMQ (Used for traffic peaking/shaving and asynchronous decoupling)
-- **Configuration**: Viper (Support for YAML/JSON configs)
+- **Configuration**: Viper (Support for YAML/JSON configs, environment variables, hot reload)
 - **Tracing**: OpenTelemetry + Jaeger via OTLP gRPC (Distributed tracing)
 - **Rate Limiting**: golang.org/x/time/rate (Local) + Redis (Distributed)
+- **Metrics**: Prometheus (HTTP request counts, latency histograms, business metrics)
+- **Logging**: Uber Zap (Structured JSON logging)
+- **API Documentation**: Swagger/OpenAPI 3.0
 
 ## 3. Layered Design
 
@@ -55,6 +58,9 @@ The application follows a strict layered architecture:
 - **Middleware**: Handles cross-cutting concerns:
   - JWT Authentication (`internal/middleware/auth.go`)
   - Rate Limiting (`internal/middleware/ratelimit.go`)
+  - Structured Logging (`internal/middleware/logger.go`)
+  - Prometheus Metrics (`internal/middleware/metrics.go`)
+  - Error Handling (`internal/middleware/error_handler.go`)
 
 ### 3.2 Service Layer (`internal/service`)
 - Contains the core business logic.
@@ -116,6 +122,57 @@ Two types of rate limiting are implemented:
   - Custom attributes (UserID, ProductID, OrderNo)
   - Trace context propagation
 
+### 4.7 Microservices Architecture
+
+**Supported Deployment Modes:**
+
+1. **Monolithic Mode (Default)**
+   - Single binary, all features in one process
+   - Simplest deployment
+   - Suitable for small to medium traffic
+
+2. **Microservices Mode**
+   - API Gateway routes requests to dedicated services
+   - Independent scaling per service
+   - Service discovery and registration
+   - Suitable for high scalability needs
+
+**Service Components:**
+
+| Service | Port | Responsibility |
+|---------|------|----------------|
+| API Gateway | 8080 | Request routing, authentication |
+| User Service | 8081 | User registration, login |
+| Product Service | 8082 | Product CRUD |
+| Order Service | 8083 | Order management |
+| Stock Service | 8084 | Inventory, seckill operations |
+
+**Service Discovery:**
+- In-memory registry (single instance)
+- Redis-based registry (distributed)
+- Health checks and automatic deregistration
+
+### 4.8 Observability Stack
+
+**Health Checks:**
+- `/health` - Liveness probe, checks all dependencies
+- `/ready` - Readiness probe, checks if app is ready for traffic
+
+**Prometheus Metrics:**
+- HTTP request count/latency histograms
+- Business metrics: orders, seckill attempts, user logins
+- Infrastructure metrics: DB connections, Redis ping, RabbitMQ messages
+
+**Structured Logging:**
+- Uber Zap integration
+- JSON format for production, console for development
+- Request/response logging middleware
+
+**Configuration Management:**
+- Viper with YAML files
+- Environment variable override (GOMALL_* prefix)
+- Hot reload via SIGHUP signal
+
 ## 5. Deployment
 
 - **Single Binary**: The entire application compiles into a single binary (`gomall.exe` / `main`).
@@ -127,15 +184,22 @@ Two types of rate limiting are implemented:
 | Path | Purpose |
 |------|---------|
 | `cmd/` | Main application entry point (`main.go`). |
-| `internal/api/` | HTTP Handlers (Controllers) - User, Product, Order, Cart, Seckill. |
+| `internal/api/` | HTTP Handlers (Controllers) - User, Product, Order, Cart, Seckill, HealthCheck. |
 | `internal/service/` | Business Logic - User, Product, Order, Cart, Seckill services. |
 | `internal/repository/` | DB and Cache interactions. |
 | `internal/model/` | Data entities - User, Product, Order, Cart, Stock models. |
-| `internal/middleware/` | JWT Authentication, Admin authorization, Rate Limiting. |
-| `internal/router/` | Gin route definitions. |
+| `internal/middleware/` | JWT Auth, Admin Auth, Rate Limiting, Logging, Metrics, Error Handling. |
+| `internal/router/` | Gin route definitions + Swagger integration. |
 | `internal/rabbitmq/` | Message queue producer/consumer. |
 | `internal/redis/` | Redis client and Lua scripts. |
 | `internal/tracing/` | OpenTelemetry + Jaeger tracing integration. |
 | `internal/grpc/` | gRPC service definitions (future use). |
-| `conf/` | Configuration files (`config.yaml`). |
+| `internal/logger/` | Uber Zap structured logging. |
+| `internal/metrics/` | Prometheus metrics definitions. |
+| `internal/registry/` | Service discovery and registration. |
+| `internal/gateway/` | API Gateway for microservices. |
+| `conf/` | Configuration files (`config.yaml`, `config-dev.yaml`, `config-prod.yaml`). |
+| `docs/` | Swagger API documentation. |
+| `scripts/` | Database backup scripts (Linux/Mac + Windows). |
+| `deploy/` | Docker deployment configurations. |
 | `pkg/` | Shared utilities (JWT, Password hashing). |

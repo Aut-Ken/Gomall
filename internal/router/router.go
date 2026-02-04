@@ -5,6 +5,9 @@ import (
 	"gomall/internal/middleware"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	swaggerfiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // Setup 路由设置
@@ -15,17 +18,21 @@ func Setup(r *gin.Engine) {
 	orderHandler := api.NewOrderHandler()
 	seckillHandler := api.NewSeckillHandler()
 	cartHandler := api.NewCartHandler()
+	healthCheck := api.NewHealthCheck()
 
-	// 健康检查
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"code": 200,
-			"msg":  "OK",
-		})
-	})
+	// 健康检查（无中间件，快速响应）
+	r.GET("/health", healthCheck.Health)
+	r.GET("/ready", healthCheck.Ready)
 
-	// API路由组
+	// Prometheus 指标端点
+	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
+
+	// Swagger API 文档
+	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.NewHandler(), ginSwagger.URL("/swagger/doc.json")))
+
+	// 全局指标中间件（用于 API 组）
 	apiGroup := r.Group("/api")
+	apiGroup.Use(middleware.MetricsMiddleware())
 	{
 		// 用户模块（无需登录）
 		userGroup := apiGroup.Group("/user")

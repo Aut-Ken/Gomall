@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"gomall/internal/config"
+	"gomall/internal/logger"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 // Client RabbitMQ连接对象
@@ -115,7 +116,7 @@ func Init() error {
 		return fmt.Errorf("延迟队列绑定失败: %w", err)
 	}
 
-	log.Println("RabbitMQ初始化成功")
+	logger.Info("RabbitMQ初始化成功")
 	return nil
 }
 
@@ -126,6 +127,17 @@ func Close() error {
 	}
 	if Client != nil {
 		return Client.Close()
+	}
+	return nil
+}
+
+// Ping 检查RabbitMQ连接
+func Ping() error {
+	if Client == nil {
+		return fmt.Errorf("RabbitMQ未初始化")
+	}
+	if Client.IsClosed() {
+		return fmt.Errorf("RabbitMQ连接已关闭")
 	}
 	return nil
 }
@@ -244,20 +256,20 @@ func ConsumeOrderMessage(handler func(msg *OrderMessage) error) {
 		nil,        // 参数
 	)
 	if err != nil {
-		log.Printf("消费订单消息失败: %v", err)
+		logger.Error("消费订单消息失败", zap.Error(err))
 		return
 	}
 
 	for msg := range msgs {
 		var orderMsg OrderMessage
 		if err := json.Unmarshal(msg.Body, &orderMsg); err != nil {
-			log.Printf("消息解析失败: %v", err)
+			logger.Error("消息解析失败", zap.Error(err))
 			msg.Nack(false, false) // 拒绝消息，不重新入队
 			continue
 		}
 
 		if err := handler(&orderMsg); err != nil {
-			log.Printf("订单处理失败: %v", err)
+			logger.Error("订单处理失败", zap.String("order_no", orderMsg.OrderNo), zap.Error(err))
 			msg.Nack(false, true) // 拒绝消息，重新入队
 			continue
 		}
@@ -278,20 +290,20 @@ func ConsumeSeckillMessage(handler func(msg *SeckillMessage) error) {
 		nil,          // 参数
 	)
 	if err != nil {
-		log.Printf("消费秒杀消息失败: %v", err)
+		logger.Error("消费秒杀消息失败", zap.Error(err))
 		return
 	}
 
 	for msg := range msgs {
 		var seckillMsg SeckillMessage
 		if err := json.Unmarshal(msg.Body, &seckillMsg); err != nil {
-			log.Printf("秒杀消息解析失败: %v", err)
+			logger.Error("秒杀消息解析失败", zap.Error(err))
 			msg.Nack(false, false)
 			continue
 		}
 
 		if err := handler(&seckillMsg); err != nil {
-			log.Printf("秒杀处理失败: %v", err)
+			logger.Error("秒杀处理失败", zap.Uint("user_id", seckillMsg.UserID), zap.Uint("product_id", seckillMsg.ProductID), zap.Error(err))
 			msg.Nack(false, true)
 			continue
 		}

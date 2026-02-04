@@ -4,13 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
+	"gomall/internal/logger"
 	"gomall/internal/model"
 	"gomall/internal/rabbitmq"
 	"gomall/internal/redis"
 	"gomall/internal/repository"
+
+	"go.uber.org/zap"
 )
 
 var (
@@ -110,7 +112,7 @@ func (s *SeckillService) SeckillWithRedis(ctx context.Context, userID uint, req 
 	// 8. 发送消息到 RabbitMQ (异步下单)
 	if err := rabbitmq.PublishSeckillMessage(ctx, msg); err != nil {
 		// ⚠️ 关键点：如果发消息失败，必须回滚 Redis 库存和用户状态
-		log.Printf("发送秒杀消息失败: %v", err)
+		logger.Error("发送秒杀消息失败", zap.Uint("user_id", userID), zap.Uint("product_id", productID), zap.Error(err))
 
 		// 回滚库存
 		incrStock(ctx, productID, 1)
@@ -135,11 +137,15 @@ func (s *SeckillService) SeckillWithRedis(ctx context.Context, userID uint, req 
 // ProcessSeckillOrders 处理秒杀订单（MQ消费者）
 // 这是一个后台任务，会持续运行
 func (s *SeckillService) ProcessSeckillOrders() {
-	log.Println("🔥 秒杀订单消费者已启动，等待消息...")
+	logger.Info("秒杀订单消费者已启动，等待消息...")
 
 	// 调用 rabbitmq 包里的消费函数
 	rabbitmq.ConsumeSeckillMessage(func(msg *rabbitmq.SeckillMessage) error {
-		log.Printf("📥 收到秒杀请求: UserID=%d, ProductID=%d, RequestID=%d", msg.UserID, msg.ProductID, msg.RequestID)
+		logger.Info("收到秒杀请求",
+			zap.Uint("user_id", msg.UserID),
+			zap.Uint("product_id", msg.ProductID),
+			zap.Int64("request_id", msg.RequestID),
+		)
 
 		ctx := context.Background()
 
@@ -147,14 +153,17 @@ func (s *SeckillService) ProcessSeckillOrders() {
 		dedupKey := fmt.Sprintf("seckill:processed:%d:%d", msg.UserID, msg.ProductID)
 		exists, err := redis.Client.Exists(ctx, dedupKey).Result()
 		if err == nil && exists > 0 {
-			log.Printf("⚠️ 订单已处理过，跳过: UserID=%d, ProductID=%d", msg.UserID, msg.ProductID)
+			logger.Warn("订单已处理过，跳过",
+				zap.Uint("user_id", msg.UserID),
+				zap.Uint("product_id", msg.ProductID),
+			)
 			return nil // 已处理过，跳过
 		}
 
 		// 2. 获取商品信息 (为了拿到最新价格和名称)
 		product, err := s.productRepo.GetByID(msg.ProductID)
 		if err != nil {
-			log.Printf("获取商品失败: %v", err)
+			logger.Error("获取商品失败", zap.Uint("product_id", msg.ProductID), zap.Error(err))
 			return err // 返回错误，MQ会重试
 		}
 
@@ -176,14 +185,14 @@ func (s *SeckillService) ProcessSeckillOrders() {
 		// 5. 写入数据库 (真正的落库操作)
 		// OrderRepo.Create 里面包含了事务：创建订单 + 扣减数据库库存
 		if err := s.orderRepo.Create(order); err != nil {
-			log.Printf("❌ 创建订单失败: %v", err)
+			logger.Error("创建订单失败", zap.String("order_no", orderNo), zap.Error(err))
 			return err // 返回错误，MQ会重试
 		}
 
 		// 6. 标记为已处理（防止重复消费）
 		redis.Client.Set(ctx, dedupKey, orderNo, 24*time.Hour)
 
-		log.Printf("✅ 秒杀订单创建成功: %s", orderNo)
+		logger.Info("秒杀订单创建成功", zap.String("order_no", orderNo))
 
 		return nil
 	})

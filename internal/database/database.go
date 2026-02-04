@@ -64,6 +64,18 @@ func Init() error {
 	return nil
 }
 
+// Ping 检查数据库连接
+func Ping() error {
+	if DB == nil {
+		return fmt.Errorf("数据库未初始化")
+	}
+	sqlDB, err := DB.DB()
+	if err != nil {
+		return fmt.Errorf("获取数据库实例失败: %w", err)
+	}
+	return sqlDB.Ping()
+}
+
 // Close 关闭数据库连接
 func Close() error {
 	sqlDB, err := DB.DB()
