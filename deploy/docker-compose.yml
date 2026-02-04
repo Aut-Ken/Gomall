@@ -16,7 +16,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./deploy/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
-    command: --default-authentication-plugin=mysql_native_password
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
       interval: 10s
@@ -77,6 +77,8 @@ services:
     environment:
       - GOMALL_DATABASE_HOST=mysql
       - GOMALL_DATABASE_PORT=3306
+      - GOMALL_DATABASE_USERNAME=root      # ✅ 已新增账号
+      - GOMALL_DATABASE_PASSWORD=password  # ✅ 已新增密码
       - GOMALL_REDIS_HOST=redis
       - GOMALL_REDIS_PORT=6379
       - GOMALL_RABBITMQ_HOST=rabbitmq
