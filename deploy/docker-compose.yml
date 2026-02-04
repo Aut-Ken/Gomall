@@ -77,14 +77,15 @@ services:
     environment:
       - GOMALL_DATABASE_HOST=mysql
       - GOMALL_DATABASE_PORT=3306
-      - GOMALL_DATABASE_USERNAME=root      # ✅ 已新增账号
-      - GOMALL_DATABASE_PASSWORD=password  # ✅ 已新增密码
+      - GOMALL_DATABASE_USERNAME=root
+      - GOMALL_DATABASE_PASSWORD=password
       - GOMALL_REDIS_HOST=redis
       - GOMALL_REDIS_PORT=6379
       - GOMALL_RABBITMQ_HOST=rabbitmq
       - GOMALL_RABBITMQ_PORT=5672
     volumes:
-      - ./conf/config.yaml:/app/conf/config.yaml:ro
+      # ✅ 注意这里，我帮你改成了 config-dev.yaml
+      - ./conf/config-dev.yaml:/app/conf/config.yaml:ro
 
   # Jaeger链路追踪（可选）
   jaeger:
@@ -92,12 +93,12 @@ services:
     container_name: gomall-jaeger
     restart: unless-stopped
     ports:
-      - "16686:16686"       # Jaeger UI
-      - "4317:4317"          # OTLP gRPC 接收器
-      - "4318:4318"          # OTLP HTTP 接收器
-      - "6831:6831/udp"      # Jaeger thrift UDP
-      - "6832:6832/udp"      # Jaeger thrift UDP (compact)
-      - "14268:14268"        # Collector HTTP
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "14268:14268"
     environment:
       COLLECTOR_OTLP_ENABLED: true
 
