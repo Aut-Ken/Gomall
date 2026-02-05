@@ -35,28 +35,30 @@ func main() {
 		*configPath = "conf/config-dev.yaml"
 	}
 
-	// ================= 修改开始：调整初始化顺序 =================
-
-	// 1. 第一步：必须先初始化配置
-	// 原因：Logger 初始化时需要读取配置中的 log level 等信息
-	// 注意：此时 Logger 还没初始化，所以不能用 logger.Info，只能用 fmt.Printf
+	// 1. 第一步：先初始化配置
+	// 必须最先执行，因为日志、数据库等组件都依赖配置
+	// 注意：此时日志系统还没初始化，所以必须用 fmt.Printf 打印，不能用 logger.Info
 	fmt.Printf("正在初始化配置... 路径: %s\n", *configPath)
 	if err := config.Init(*configPath); err != nil {
-		// 配置都没加载成功，程序无法继续，直接 panic
+		// 配置加载失败是致命错误，直接 Panic 退出
 		panic(fmt.Errorf("配置初始化失败: %w", err))
 	}
 	fmt.Println("配置初始化成功")
 
 	// 2. 第二步：初始化日志系统
-	fmt.Printf("初始化日志系统... 环境: %s\n", *env)
+	// 此时配置已经加载，可以读取到 log.level 等配置项了
+	fmt.Printf("正在初始化日志系统... 环境: %s\n", *env)
 	if err := logger.Init(); err != nil {
 		fmt.Printf("日志初始化失败: %v\n", err)
 		os.Exit(1)
 	}
+	// 确保程序退出时刷新日志缓冲区
 	defer logger.Sync()
+
+	// 从这里开始，日志系统就绪，可以愉快地使用 logger.Info 了
 	logger.Info("日志系统初始化成功", zap.String("env", *env))
 
-	// ================= 修改结束 =================
+	// ================= 修改部分结束 =================
 
 	// 初始化数据库
 	logger.Info("正在连接数据库...")
