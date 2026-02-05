@@ -25,20 +25,22 @@ type Claims struct {
 
 // JWT JWT工具类
 type JWT struct {
-	secretKey   []byte
-	expireHours int
+	secretKey       []byte
+	expireHours     int
+	refreshHours    int  // refresh token 过期时间（小时）
 }
 
 // NewJWT 创建JWT实例
 func NewJWT() *JWT {
 	jwtConfig := config.GetJWT()
 	return &JWT{
-		secretKey:   []byte(jwtConfig.GetString("secret")),
+		secretKey:    []byte(jwtConfig.GetString("secret")),
 		expireHours: jwtConfig.GetInt("expire_hours"),
+		refreshHours: jwtConfig.GetInt("refresh_hours"), // 默认24小时
 	}
 }
 
-// GenerateToken 生成Token
+// GenerateToken 生成访问Token（短有效期）
 func (j *JWT) GenerateToken(userID uint, username, email string) (string, error) {
 	nowTime := time.Now()
 	expireTime := nowTime.Add(time.Duration(j.expireHours) * time.Hour)
@@ -51,11 +53,58 @@ func (j *JWT) GenerateToken(userID uint, username, email string) (string, error)
 			ExpiresAt: jwt.NewNumericDate(expireTime),
 			IssuedAt:  jwt.NewNumericDate(nowTime),
 			Issuer:    "gomall",
+			Subject:   "access",
 		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(j.secretKey)
+}
+
+// GenerateRefreshToken 生成刷新Token（长有效期）
+func (j *JWT) GenerateRefreshToken(userID uint, username, email string) (string, error) {
+	nowTime := time.Now()
+	expireTime := nowTime.Add(time.Duration(j.refreshHours) * time.Hour)
+
+	claims := Claims{
+		UserID:   userID,
+		Username: username,
+		Email:    email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expireTime),
+			IssuedAt:  jwt.NewNumericDate(nowTime),
+			Issuer:    "gomall",
+			Subject:   "refresh",
+		},
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(j.secretKey)
+}
+
+// GenerateTokenPair 生成Token对（access + refresh）
+type TokenPair struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn   int    `json:"expires_in"` // 过期时间（秒）
+}
+
+func (j *JWT) GenerateTokenPair(userID uint, username, email string) (*TokenPair, error) {
+	accessToken, err := j.GenerateToken(userID, username, email)
+	if err != nil {
+		return nil, err
+	}
+
+	refreshToken, err := j.GenerateRefreshToken(userID, username, email)
+	if err != nil {
+		return nil, err
+	}
+
+	return &TokenPair{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+		ExpiresIn:   j.expireHours * 3600,
+	}, nil
 }
 
 // ParseToken 解析Token

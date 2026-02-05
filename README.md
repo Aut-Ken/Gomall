@@ -20,6 +20,8 @@ GoMall 是一个从**单体架构逐步演进到微服务架构**的电商实战
 | **高可用** | RabbitMQ 异步削峰 + 优雅关闭 | 系统稳定运行 |
 | **可观测** | OpenTelemetry + Prometheus + Zap | 全链路监控 |
 | **可扩展** | 模块化设计 + 服务注册发现 | 支持微服务拆分 |
+| **统一规范** | 标准化响应 + 参数校验 + 错误码 | 前后端高效协作 |
+| **支付能力** | 微信支付（沙箱） | 支付流程完整跑通 |
 
 ---
 
@@ -64,6 +66,7 @@ GoMall 是一个从**单体架构逐步演进到微服务架构**的电商实战
 │                      API Gateway (8080)                         │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐   │
 │  │ JWT 认证    │  │ 限流中间件  │  │ Prometheus 指标采集   │   │
+│  │ 参数校验    │  │ 文件上传    │  │ 微信支付              │   │
 │  └─────────────┘  └─────────────┘  └─────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
                                  │
@@ -72,15 +75,16 @@ GoMall 是一个从**单体架构逐步演进到微服务架构**的电商实战
 │                        Gin HTTP Server                           │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │                    Controller 层                          │   │
-│  │  用户 │ 商品 │ 订单 │ 购物车 │ 秒杀 │ 健康检查            │   │
+│  │  用户 │ 商品 │ 订单 │ 购物车 │ 秒杀 │ 认证 │ 支付       │   │
 │  └──────────────────────────────────────────────────────────┘   │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │                    Service 层                             │   │
 │  │  业务逻辑处理 + Redis/Lua 库存扣减 + RabbitMQ 消息投递   │   │
+│  │  统一响应 + 微信支付                                     │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
                                  │
-              ┌──────────────────┼──────────────────┐
+│              ┌──────────────────┼──────────────────┐
               ▼                  ▼                  ▼
        ┌──────────┐      ┌──────────┐      ┌──────────┐
        │  MySQL   │      │  Redis   │      │RabbitMQ  │
@@ -100,6 +104,16 @@ GoMall 是一个从**单体架构逐步演进到微服务架构**的电商实战
                   返回"排队中"
 ```
 
+### 支付流程（微信沙箱）
+
+```
+1. 前端调用统一下单 → 后端调用微信API
+2. 返回支付二维码链接
+3. 用户扫码支付 → 微信回调通知
+4. 后端验证签名 → 更新订单状态
+5. 前端轮询订单状态 → 显示支付成功
+```
+
 ---
 
 ## 目录结构
@@ -110,43 +124,49 @@ gomall/
 │   └── main.go               # 主程序入口
 ├── conf/                     # 配置文件
 │   ├── config.yaml           # 默认配置
-│   ├── config-dev.yaml      # 开发环境
+│   ├── config-dev.yaml       # 开发环境
 │   └── config-prod.yaml      # 生产环境
 ├── deploy/                   # 部署配置
-│   ├── docker-compose.yml   # Docker Compose
-│   └── mysql/init.sql       # 数据库初始化
-├── docs/                    # Swagger 文档
-├── internal/                # 内部业务代码
-│   ├── api/                 # HTTP Handlers
-│   │   ├── handler.go       # 用户/商品/订单处理器
-│   │   ├── cart_handler.go  # 购物车
+│   ├── docker-compose.yml    # Docker Compose
+│   └── mysql/init.sql        # 数据库初始化
+├── docs/                     # Swagger 文档
+├── internal/                 # 内部业务代码
+│   ├── api/                  # HTTP Handlers
+│   │   ├── handler.go        # 用户/商品/订单处理器
+│   │   ├── cart_handler.go   # 购物车
 │   │   ├── seckill_handler.go # 秒杀
-│   │   └── health_check.go  # 健康检查
-│   ├── config/              # 配置加载
-│   ├── database/            # MySQL 连接
-│   ├── gateway/             # API 网关
-│   ├── grpc/                # gRPC 服务
-│   ├── logger/              # Zap 日志
-│   ├── metrics/             # Prometheus 指标
-│   ├── middleware/          # 中间件
-│   │   ├── auth.go          # JWT 认证
-│   │   ├── ratelimit.go     # 限流
-│   │   └── metrics.go       # 指标
-│   ├── model/               # 数据模型
-│   ├── rabbitmq/            # 消息队列
-│   ├── redis/               # Redis 客户端
-│   ├── registry/            # 服务注册发现
-│   ├── repository/          # 数据访问层
-│   ├── router/              # 路由配置
-│   ├── service/             # 业务逻辑
-│   │   ├── service.go       # 基础服务
-│   │   └── seckill.go       # 秒杀核心
-│   └── tracing/             # 链路追踪
-├── pkg/                     # 公共工具
-│   ├── jwt/                 # JWT 工具
-│   └── password/            # 密码加密
-├── scripts/                 # 运维脚本
-├── ARCHITECTURE.md          # 架构文档
+│   │   ├── auth_handler.go   # 认证（JWT刷新/改密/退出）
+│   │   ├── file_handler.go   # 文件上传
+│   │   ├── wechat_pay_handler.go # 微信支付
+│   │   └── health_check.go   # 健康检查
+│   ├── config/               # 配置加载
+│   ├── database/             # MySQL 连接
+│   ├── gateway/              # API 网关
+│   ├── grpc/                 # gRPC 服务
+│   ├── logger/               # Zap 日志
+│   ├── metrics/              # Prometheus 指标
+│   ├── middleware/           # 中间件
+│   │   ├── auth.go           # JWT 认证
+│   │   ├── ratelimit.go      # 限流
+│   │   ├── validator.go      # 参数校验
+│   │   └── metrics.go        # 指标
+│   ├── model/                # 数据模型
+│   ├── rabbitmq/             # 消息队列
+│   ├── redis/                # Redis 客户端
+│   ├── registry/             # 服务注册发现
+│   ├── repository/           # 数据访问层
+│   ├── response/             # 统一响应 + 错误码
+│   ├── router/               # 路由配置
+│   ├── service/              # 业务逻辑
+│   │   ├── service.go        # 基础服务
+│   │   ├── seckill.go        # 秒杀核心
+│   │   └── wechat_pay.go     # 微信支付
+│   └── tracing/              # 链路追踪
+├── pkg/                      # 公共工具
+│   ├── jwt/                  # JWT 工具
+│   └── password/              # 密码加密
+├── scripts/                  # 运维脚本
+├── ARCHITECTURE.md           # 架构文档
 ├── Dockerfile
 ├── Makefile
 └── README.md
@@ -174,6 +194,7 @@ cd gomall
 
 ```bash
 go mod download
+go mod tidy
 ```
 
 ### 3. 配置数据库
@@ -198,6 +219,15 @@ rabbitmq:
   port: 5672
   username: "guest"
   password: "guest"
+
+# 微信支付配置（沙箱）
+wechat:
+  appid: "your_appid"
+  mch_id: "your_mch_id"
+  key: "your_api_key"
+  notify_url: "http://your-domain/api/pay/wechat/notify"
+  trade_type: "NATIVE"
+  sandbox: true
 ```
 
 ### 4. 初始化数据库
@@ -241,6 +271,14 @@ go run main.go -env dev
 | POST | `/api/user/login` | 用户登录 |
 | GET | `/api/user/profile` | 获取用户信息 |
 
+### 认证模块
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/auth/refresh-token` | 刷新Token |
+| POST | `/api/auth/change-password` | 修改密码 |
+| POST | `/api/auth/logout` | 退出登录 |
+
 ### 商品模块
 
 | 方法 | 路径 | 说明 |
@@ -248,8 +286,8 @@ go run main.go -env dev
 | GET | `/api/product` | 商品列表 |
 | GET | `/api/product/:id` | 商品详情 |
 | POST | `/api/product` | 创建商品 (需登录) |
-| PUT | `/api/product/:id` | 更新商品 (需登录) |
-| DELETE | `/api/product/:id` | 删除商品 (需登录) |
+| PUT | `/api/product/:id` | 更新商品 (需管理员) |
+| DELETE | `/api/product/:id` | 删除商品 (需管理员) |
 
 ### 订单模块
 
@@ -277,6 +315,53 @@ go run main.go -env dev
 |------|------|------|
 | POST | `/api/seckill` | 秒杀接口 (需登录) |
 | POST | `/api/seckill/init` | 初始化库存 (需管理员) |
+
+### 文件上传模块
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/upload` | 单文件上传 (需登录) |
+| POST | `/api/upload/multi` | 多文件上传 (需登录) |
+
+### 微信支付模块
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/pay/wechat/unified-order` | 统一下单 (需登录) |
+| GET | `/api/pay/wechat/query` | 订单查询 (需登录) |
+| POST | `/api/pay/wechat/close` | 关闭订单 (需登录) |
+| POST | `/api/pay/wechat/refund` | 申请退款 (需登录) |
+| POST | `/api/pay/wechat/notify` | 支付回调 (无需认证) |
+
+---
+
+## 统一响应格式
+
+所有 API 返回统一格式：
+
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {...},
+  "trace_id": "xxx"
+}
+```
+
+### 错误码示例
+
+| 错误码 | 说明 |
+|--------|------|
+| 0 | 成功 |
+| 400 | 参数错误 |
+| 401 | 未登录 |
+| 403 | 无权限 |
+| 404 | 不存在 |
+| 500 | 系统错误 |
+| 10001 | 用户不存在 |
+| 20001 | 商品不存在 |
+| 30001 | 订单不存在 |
+| 40001 | 支付创建失败 |
 
 ---
 
@@ -306,13 +391,37 @@ func decrStockWithLua(ctx context.Context, productID uint, quantity int) (int, e
 4. 发送消息到 RabbitMQ
 5. 异步消费者创建订单
 
-### 2. JWT 认证
+### 2. 统一响应与错误码
+
+```go
+// 成功响应
+response.Ok(c)
+response.OkWithData(c, gin.H{"token": token})
+
+// 失败响应
+response.BadRequest(c, "参数错误")
+response.Unauthorized(c, "未登录")
+response.FailWithMsg(c, response.CodeOrderNotFound, "订单不存在")
+```
+
+### 3. JWT 认证与刷新
 
 - bcrypt 密码加密
 - JWT Token 生成与验证
+- Token 刷新机制（access_token 过期可用 refresh_token 续期）
 - 中间件拦截认证
 
-### 3. 限流策略
+### 4. 微信支付（沙箱）
+
+```go
+// 统一下单
+result, err := wechatPayService.UnifiedOrder(ctx, orderNo, totalFee, body)
+
+// 支付回调处理
+result, err := wechatPayService.PayNotify(ctx, xmlData)
+```
+
+### 5. 限流策略
 
 | 场景 | QPS | 突发 | 实现方式 |
 |------|-----|------|----------|
@@ -321,23 +430,14 @@ func decrStockWithLua(ctx context.Context, productID uint, quantity int) (int, e
 | 秒杀 | 5 | 10 | Redis 分布式 |
 | 登录 | 10 | 20 | 本地限流 |
 
-### 4. 链路追踪
+### 6. 参数校验
 
-集成 OpenTelemetry，通过 OTLP gRPC 导出到 Jaeger：
-
-```yaml
-tracing:
-  enabled: true
-  service_name: "gomall-service"
-  jaeger_endpoint: "localhost:4317"
-```
-
-### 5. 优雅关闭
-
-支持 SIGHUP 信号热重载配置：
-
-```bash
-kill -HUP <pid>
+```go
+type RegisterRequest struct {
+    Username string `json:"username" binding:"required,min=3,max=50"`
+    Password string `json:"password" binding:"required,min=6,max=20"`
+    Email    string `json:"email" binding:"required,email"`
+}
 ```
 
 ---
@@ -391,40 +491,6 @@ make help          # 显示帮助
 
 ---
 
-## 微服务架构
-
-### 部署模式
-
-**单体模式 (默认)：**
-- 单一进程，所有功能集成
-- 部署简单，适合中小流量
-
-**微服务模式：**
-
-| 服务 | 端口 | 职责 |
-|------|------|------|
-| API Gateway | 8080 | 请求路由、认证 |
-| User Service | 8081 | 用户管理 |
-| Product Service | 8082 | 商品管理 |
-| Order Service | 8083 | 订单管理 |
-| Stock Service | 8084 | 库存管理 |
-
-### 启动微服务
-
-```bash
-# Docker Compose 方式
-docker-compose -f deploy/docker-compose-microservices.yml up -d
-
-# 独立启动
-./app -service=user -port=8081
-./app -service=product -port=8082
-./app -service=order -port=8083
-./app -service=stock -port=8084
-./app -gateway -port=8080
-```
-
----
-
 ## 项目进度
 
 | 阶段 | 状态 | 内容 |
@@ -434,6 +500,20 @@ docker-compose -f deploy/docker-compose-microservices.yml up -d
 | Phase 3 | ✅ | 购物车模块 |
 | Phase 4 | ✅ | 可观测性、健康检查、限流、监控 |
 | Phase 5 | ✅ | 微服务架构、服务注册发现 |
+| Phase 6 | ✅ | API规范化、统一响应、错误码体系 |
+| Phase 7 | ✅ | JWT刷新、修改密码、退出登录 |
+| Phase 8 | ✅ | 文件上传功能 |
+| Phase 9 | ✅ | 微信支付（沙箱） |
+
+---
+
+## 下一步计划
+
+- [ ] 接入前端（Vue/React）
+- [ ] 支付宝支付（正式环境）
+- [ ] 订单超时自动取消（定时任务）
+- [ ] 消息推送（WebSocket）
+- [ ] 缓存优化（多级缓存）
 
 ---
 

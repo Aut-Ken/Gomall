@@ -18,6 +18,9 @@ func Setup(r *gin.Engine) {
 	orderHandler := api.NewOrderHandler()
 	seckillHandler := api.NewSeckillHandler()
 	cartHandler := api.NewCartHandler()
+	authHandler := api.NewAuthHandler()
+	fileHandler := api.NewFileHandler()
+	wechatPayHandler := api.NewWeChatPayHandler()
 	healthCheck := api.NewHealthCheck()
 
 	// 健康检查（无中间件，快速响应）
@@ -97,6 +100,38 @@ func Setup(r *gin.Engine) {
 		{
 			profileGroup.GET("/profile", userHandler.GetProfile) // 获取个人信息
 		}
+
+		// --- 新增：认证模块 ---
+		authGroup := apiGroup.Group("/auth")
+		{
+			authGroup.POST("/refresh-token", authHandler.RefreshToken) // 刷新Token: POST /api/auth/refresh-token
+			authGroup.POST("/change-password", middleware.AuthMiddleware(), authHandler.ChangePassword) // 修改密码: POST /api/auth/change-password
+			authGroup.POST("/logout", middleware.AuthMiddleware(), authHandler.Logout) // 退出登录: POST /api/auth/logout
+		}
+
+		// --- 新增：文件上传模块 ---
+		uploadGroup := apiGroup.Group("/upload")
+		uploadGroup.Use(middleware.AuthMiddleware())
+		{
+			uploadGroup.POST("", fileHandler.Upload) // 单文件上传: POST /api/upload
+			uploadGroup.POST("/multi", fileHandler.UploadMulti) // 多文件上传: POST /api/upload/multi
+		}
+
+		// 配置静态文件服务
+		api.SetupStatic(r)
+
+		// --- 新增：微信支付模块 ---
+		wechatPayGroup := apiGroup.Group("/pay/wechat")
+		wechatPayGroup.Use(middleware.AuthMiddleware())
+		{
+			wechatPayGroup.POST("/unified-order", wechatPayHandler.UnifiedOrder)   // 统一下单: POST /api/pay/wechat/unified-order
+			wechatPayGroup.GET("/query", wechatPayHandler.QueryOrder)              // 订单查询: GET /api/pay/wechat/query
+			wechatPayGroup.POST("/close", wechatPayHandler.CloseOrder)             // 关闭订单: POST /api/pay/wechat/close
+			wechatPayGroup.POST("/refund", wechatPayHandler.Refund)                // 申请退款: POST /api/pay/wechat/refund
+		}
+
+		// 微信支付回调（无需认证）
+		apiGroup.POST("/pay/wechat/notify", wechatPayHandler.Notify) // 支付回调: POST /api/pay/wechat/notify
 	}
 }
 

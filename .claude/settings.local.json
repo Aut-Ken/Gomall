@@ -12,7 +12,8 @@
       "Bash(go install github.com/swaggo/gin-swagger@latest)",
       "Bash(del:*)",
       "Bash(dir:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(go clean:*)"
     ]
   }
 }

@@ -36,7 +36,7 @@ graph TD
 
 ## 2. Technical Stack
 
-- **Language**: Go 1.20+
+- **Language**: Go 1.23+
 - **Web Framework**: Gin (High performance HTTP web framework)
 - **Database ORM**: Gorm (MySQL interaction)
 - **Cache & kv Store**: Redis (Used for caching, distributed locks, and inventory counters)
@@ -47,6 +47,8 @@ graph TD
 - **Metrics**: Prometheus (HTTP request counts, latency histograms, business metrics)
 - **Logging**: Uber Zap (Structured JSON logging)
 - **API Documentation**: Swagger/OpenAPI 3.0
+- **Validation**: go-playground/validator (Request validation)
+- **Payment**: WeChat Pay API (Sandbox environment)
 
 ## 3. Layered Design
 
@@ -61,6 +63,16 @@ The application follows a strict layered architecture:
   - Structured Logging (`internal/middleware/logger.go`)
   - Prometheus Metrics (`internal/middleware/metrics.go`)
   - Error Handling (`internal/middleware/error_handler.go`)
+  - Parameter Validation (`internal/middleware/validator.go`)
+
+**Handlers Include:**
+- `handler.go` - User, Product, Order handlers
+- `cart_handler.go` - Shopping cart
+- `seckill_handler.go` - Seckill operations
+- `auth_handler.go` - JWT refresh, password change, logout
+- `file_handler.go` - File upload (single/multi)
+- `wechat_pay_handler.go` - WeChat Pay integration
+- `health_check.go` - Health checks
 
 ### 3.2 Service Layer (`internal/service`)
 - Contains the core business logic.
@@ -113,7 +125,62 @@ Two types of rate limiting are implemented:
 - Supports multi-instance deployments
 - Sliding window algorithm for accurate rate limiting
 
-### 4.6 Distributed Tracing (OpenTelemetry + Jaeger via OTLP gRPC)
+### 4.6 Unified Response & Error Codes
+
+**Standard Response Format:**
+```json
+{
+  "code": 0,
+  "message": "success",
+  "data": {...},
+  "trace_id": "xxx"
+}
+```
+
+**Error Code System:**
+| Code Range | Module |
+|------------|--------|
+| 0 | Success |
+| 400-500 | System errors (400=BadRequest, 401=Unauthorized, 403=Forbidden, 404=NotFound, 500=ServerError) |
+| 10001-10099 | User module |
+| 20001-20099 | Product module |
+| 30001-30099 | Order module |
+| 40001-40099 | Payment module |
+| 50001-50099 | Cart module |
+| 60001-60099 | Seckill module |
+| 70001-70099 | File upload module |
+
+### 4.7 Parameter Validation
+
+- Uses `go-playground/validator` for request validation
+- Supports struct tags: `binding:"required,min=3,max=50,email"`
+- Custom error messages in Chinese/English
+- Validation for JSON, Form, and Query parameters
+
+### 4.8 WeChat Pay Integration (Sandbox)
+
+**Flow:**
+1. Frontend calls unified-order API
+2. Backend calls WeChat API with signed request
+3. Returns payment QR code URL
+4. User scans QR code to pay
+5. WeChat sends async notification to callback URL
+6. Backend verifies signature and updates order status
+7. Frontend polls order status
+
+**Features:**
+- Unified Order API
+- Payment notification handling
+- Order query
+- Order close
+- Refund support
+- MD5 signature verification
+
+**Files:**
+- `internal/service/wechat_pay.go` - Payment service logic
+- `internal/api/wechat_pay_handler.go` - API handlers
+
+### 4.9 Distributed Tracing (OpenTelemetry + Jaeger via OTLP gRPC)
 - **OpenTelemetry Integration**: Standardized tracing API
 - **OTLP gRPC Exporter**: Sends traces to Jaeger via gRPC protocol (port 4317)
 - **Key Features**:
@@ -122,7 +189,7 @@ Two types of rate limiting are implemented:
   - Custom attributes (UserID, ProductID, OrderNo)
   - Trace context propagation
 
-### 4.7 Microservices Architecture
+### 4.10 Microservices Architecture
 
 **Supported Deployment Modes:**
 
@@ -179,16 +246,38 @@ Two types of rate limiting are implemented:
 - **Containerization**: `Dockerfile` provided for containerized deployment.
 - **Orchestration**: `docker-compose.yml` orchestrates the App, MySQL, Redis, and RabbitMQ.
 
+## 7. File Upload
+
+**Features:**
+- Single file upload (`POST /api/upload`)
+- Multi file upload (`POST /api/upload/multi`)
+- Supported formats: jpg, jpeg, png, gif
+- Configurable file size limit
+- Static file serving (`/uploads`)
+
+**Configuration:**
+```yaml
+upload:
+  path: "./uploads"  # Storage path
+  max_size: 10       # Max file size in MB
+  allowed_types:     # Allowed file types
+    - jpg
+    - jpeg
+    - png
+    - gif
+```
+
 ## 6. Directory Map
 
 | Path | Purpose |
 |------|---------|
 | `cmd/` | Main application entry point (`main.go`). |
-| `internal/api/` | HTTP Handlers (Controllers) - User, Product, Order, Cart, Seckill, HealthCheck. |
-| `internal/service/` | Business Logic - User, Product, Order, Cart, Seckill services. |
+| `internal/api/` | HTTP Handlers - User, Product, Order, Cart, Seckill, Auth, File, WeChatPay, HealthCheck. |
+| `internal/service/` | Business Logic - User, Product, Order, Cart, Seckill, WeChatPay services. |
 | `internal/repository/` | DB and Cache interactions. |
 | `internal/model/` | Data entities - User, Product, Order, Cart, Stock models. |
-| `internal/middleware/` | JWT Auth, Admin Auth, Rate Limiting, Logging, Metrics, Error Handling. |
+| `internal/middleware/` | JWT Auth, Admin Auth, Rate Limiting, Logging, Metrics, Error Handling, Validation. |
+| `internal/response/` | Unified response format and error codes. |
 | `internal/router/` | Gin route definitions + Swagger integration. |
 | `internal/rabbitmq/` | Message queue producer/consumer. |
 | `internal/redis/` | Redis client and Lua scripts. |
@@ -198,6 +287,8 @@ Two types of rate limiting are implemented:
 | `internal/metrics/` | Prometheus metrics definitions. |
 | `internal/registry/` | Service discovery and registration. |
 | `internal/gateway/` | API Gateway for microservices. |
+| `internal/config/` | Configuration loading with Viper. |
+| `internal/database/` | MySQL connection with GORM. |
 | `conf/` | Configuration files (`config.yaml`, `config-dev.yaml`, `config-prod.yaml`). |
 | `docs/` | Swagger API documentation. |
 | `scripts/` | Database backup scripts (Linux/Mac + Windows). |

@@ -114,17 +114,45 @@ func (s *UserService) Login(req *LoginRequest) (string, *UserResponse, error) {
 
 	// 生成JWT Token
 	jwtUtil := jwt.NewJWT()
-	token, err := jwtUtil.GenerateToken(user.ID, user.Username, user.Email)
+	tokenPair, err := jwtUtil.GenerateTokenPair(user.ID, user.Username, user.Email)
 	if err != nil {
 		return "", nil, errors.New("Token生成失败")
 	}
 
-	return token, &UserResponse{
+	return tokenPair.AccessToken, &UserResponse{
 		ID:       user.ID,
 		Username: user.Username,
 		Email:    user.Email,
 		Phone:    user.Phone,
 	}, nil
+}
+
+// RefreshToken 刷新Token
+func (s *UserService) RefreshToken(refreshToken string) (string, error) {
+	jwtUtil := jwt.NewJWT()
+	claims, err := jwtUtil.ParseToken(refreshToken)
+	if err != nil {
+		return "", errors.New("无效的刷新Token")
+	}
+
+	return jwtUtil.GenerateToken(claims.UserID, claims.Username, claims.Email)
+}
+
+// ChangePassword 修改密码
+func (s *UserService) ChangePassword(userID uint, newPassword string) error {
+	user, err := s.userRepo.GetByID(userID)
+	if err != nil {
+		return err
+	}
+
+	// 加密新密码
+	hashedPassword, err := password.HashPassword(newPassword)
+	if err != nil {
+		return errors.New("密码加密失败")
+	}
+
+	user.Password = hashedPassword
+	return s.userRepo.UpdatePassword(user)
 }
 
 // GetUserByID 根据ID获取用户信息
@@ -323,6 +351,7 @@ type CreateOrderRequest struct {
 type OrderResponse struct {
 	ID          uint    `json:"id"`
 	OrderNo     string  `json:"order_no"`
+	UserID      uint    `json:"user_id"`
 	ProductID   uint    `json:"product_id"`
 	ProductName string  `json:"product_name"`
 	Quantity    int     `json:"quantity"`
@@ -384,6 +413,7 @@ func (s *OrderService) CreateOrder(userID uint, req *CreateOrderRequest) (*Order
 	return &OrderResponse{
 		ID:          0, // 异步创建，暂无数据库ID
 		OrderNo:     orderNo,
+		UserID:      userID,
 		ProductID:   product.ID,
 		ProductName: product.Name,
 		Quantity:    req.Quantity,
@@ -441,6 +471,7 @@ func (s *OrderService) CreateOrderSync(userID uint, req *CreateOrderRequest) (*O
 	return &OrderResponse{
 		ID:          order.ID,
 		OrderNo:     order.OrderNo,
+		UserID:      order.UserID,
 		ProductID:   order.ProductID,
 		ProductName: order.ProductName,
 		Quantity:    order.Quantity,
@@ -460,6 +491,7 @@ func (s *OrderService) GetOrderList(userID uint, page, pageSize int) ([]OrderRes
 		responses[i] = OrderResponse{
 			ID:          o.ID,
 			OrderNo:     o.OrderNo,
+			UserID:      o.UserID,
 			ProductID:   o.ProductID,
 			ProductName: o.ProductName,
 			Quantity:    o.Quantity,
@@ -483,6 +515,7 @@ func (s *OrderService) GetOrderByNo(orderNo string) (*OrderResponse, error) {
 	return &OrderResponse{
 		ID:          order.ID,
 		OrderNo:     order.OrderNo,
+		UserID:      order.UserID,
 		ProductID:   order.ProductID,
 		ProductName: order.ProductName,
 		Quantity:    order.Quantity,

@@ -1,10 +1,10 @@
 package api
 
 import (
-	"net/http"
 	"strconv"
 
 	"gomall/internal/middleware"
+	"gomall/internal/response"
 	"gomall/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -29,32 +29,22 @@ func NewUserHandler() *UserHandler {
 // @Accept json
 // @Produce json
 // @Param req body service.RegisterRequest true "注册信息"
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/user/register [post]
 func (h *UserHandler) Register(c *gin.Context) {
 	var req service.RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  "参数错误: " + err.Error(),
-		})
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	user, err := h.userService.Register(&req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeUserAlreadyExist, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "注册成功",
-		"data": user,
-	})
+	response.OkWithData(c, user)
 }
 
 // Login 用户登录
@@ -64,34 +54,24 @@ func (h *UserHandler) Register(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param req body service.LoginRequest true "登录信息"
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/user/login [post]
 func (h *UserHandler) Login(c *gin.Context) {
 	var req service.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  "参数错误: " + err.Error(),
-		})
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	token, user, err := h.userService.Login(&req)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code": 401,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeUserPasswordError, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "登录成功",
-		"data": gin.H{
-			"token": token,
-			"user":  user,
-		},
+	response.OkWithData(c, gin.H{
+		"token": token,
+		"user":  user,
 	})
 }
 
@@ -101,32 +81,22 @@ func (h *UserHandler) Login(c *gin.Context) {
 // @Tags 用户
 // @Produce json
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/user/profile [get]
 func (h *UserHandler) GetProfile(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code": 401,
-			"msg":  "未登录",
-		})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	user, err := h.userService.GetUserByID(userID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code": 404,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeUserNotFound, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "success",
-		"data": user,
-	})
+	response.OkWithData(c, user)
 }
 
 // ProductHandler 商品接口处理层
@@ -149,32 +119,22 @@ func NewProductHandler() *ProductHandler {
 // @Produce json
 // @Param req body service.CreateProductRequest true "商品信息"
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/product [post]
 func (h *ProductHandler) Create(c *gin.Context) {
 	var req service.CreateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  "参数错误: " + err.Error(),
-		})
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	product, err := h.productService.Create(&req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeProductCreateFailed, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "创建成功",
-		"data": product,
-	})
+	response.OkWithData(c, product)
 }
 
 // List 获取商品列表
@@ -185,7 +145,7 @@ func (h *ProductHandler) Create(c *gin.Context) {
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(10)
 // @Param category query string false "商品分类"
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/product [get]
 func (h *ProductHandler) List(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
@@ -201,16 +161,7 @@ func (h *ProductHandler) List(c *gin.Context) {
 
 	products, total := h.productService.GetList(page, pageSize, category)
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "success",
-		"data": gin.H{
-			"list":     products,
-			"total":    total,
-			"page":     page,
-			"pageSize": pageSize,
-		},
-	})
+	response.OkWithList(c, products, int64(total), page, pageSize)
 }
 
 // Get 获取商品详情
@@ -219,25 +170,18 @@ func (h *ProductHandler) List(c *gin.Context) {
 // @Tags 商品
 // @Produce json
 // @Param id path int true "商品ID"
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/product/{id} [get]
 func (h *ProductHandler) Get(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 
 	product, err := h.productService.GetByID(uint(id))
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code": 404,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeProductNotFound, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "success",
-		"data": product,
-	})
+	response.OkWithData(c, product)
 }
 
 // Update 更新商品
@@ -249,32 +193,23 @@ func (h *ProductHandler) Get(c *gin.Context) {
 // @Param id path int true "商品ID"
 // @Param req body service.UpdateProductRequest true "商品信息"
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/product/{id} [put]
 func (h *ProductHandler) Update(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 
 	var req service.UpdateProductRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  "参数错误: " + err.Error(),
-		})
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	if err := h.productService.Update(uint(id), &req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeProductUpdateFailed, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "更新成功",
-	})
+	response.Ok(c)
 }
 
 // Delete 删除商品
@@ -284,23 +219,17 @@ func (h *ProductHandler) Update(c *gin.Context) {
 // @Produce json
 // @Param id path int true "商品ID"
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/product/{id} [delete]
 func (h *ProductHandler) Delete(c *gin.Context) {
 	id, _ := strconv.ParseUint(c.Param("id"), 10, 64)
 
 	if err := h.productService.Delete(uint(id)); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeProductDeleteFailed, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "删除成功",
-	})
+	response.Ok(c)
 }
 
 // OrderHandler 订单接口处理层
@@ -323,41 +252,28 @@ func NewOrderHandler() *OrderHandler {
 // @Produce json
 // @Param req body service.CreateOrderRequest true "订单信息"
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/order [post]
 func (h *OrderHandler) Create(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code": 401,
-			"msg":  "未登录",
-		})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	var req service.CreateOrderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  "参数错误: " + err.Error(),
-		})
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	order, err := h.orderService.CreateOrder(userID, &req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeOrderCreateFailed, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "创建成功",
-		"data": order,
-	})
+	response.OkWithData(c, order)
 }
 
 // List 获取订单列表
@@ -368,15 +284,12 @@ func (h *OrderHandler) Create(c *gin.Context) {
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(10)
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/order [get]
 func (h *OrderHandler) List(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code": 401,
-			"msg":  "未登录",
-		})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
@@ -392,16 +305,7 @@ func (h *OrderHandler) List(c *gin.Context) {
 
 	orders, total := h.orderService.GetOrderList(userID, page, pageSize)
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "success",
-		"data": gin.H{
-			"list":     orders,
-			"total":    total,
-			"page":     page,
-			"pageSize": pageSize,
-		},
-	})
+	response.OkWithList(c, orders, int64(total), page, pageSize)
 }
 
 // Get 获取订单详情
@@ -411,25 +315,18 @@ func (h *OrderHandler) List(c *gin.Context) {
 // @Produce json
 // @Param order_no path string true "订单号"
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/order/{order_no} [get]
 func (h *OrderHandler) Get(c *gin.Context) {
 	orderNo := c.Param("order_no")
 
 	order, err := h.orderService.GetOrderByNo(orderNo)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code": 404,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeOrderNotFound, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "success",
-		"data": order,
-	})
+	response.OkWithData(c, order)
 }
 
 // Pay 支付订单
@@ -439,23 +336,17 @@ func (h *OrderHandler) Get(c *gin.Context) {
 // @Produce json
 // @Param order_no path string true "订单号"
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/order/{order_no}/pay [post]
 func (h *OrderHandler) Pay(c *gin.Context) {
 	orderNo := c.Param("order_no")
 
 	if err := h.orderService.PayOrder(orderNo); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeOrderPayFailed, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "支付成功",
-	})
+	response.Ok(c)
 }
 
 // Cancel 取消订单
@@ -465,23 +356,17 @@ func (h *OrderHandler) Pay(c *gin.Context) {
 // @Produce json
 // @Param order_no path string true "订单号"
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/order/{order_no}/cancel [post]
 func (h *OrderHandler) Cancel(c *gin.Context) {
 	orderNo := c.Param("order_no")
 
 	if err := h.orderService.CancelOrder(orderNo); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeOrderCancelFailed, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "取消成功",
-	})
+	response.Ok(c)
 }
 
 // CartHandler 购物车接口处理层
@@ -504,41 +389,28 @@ func NewCartHandler() *CartHandler {
 // @Produce json
 // @Param req body service.AddToCartRequest true "商品信息"
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/cart [post]
 func (h *CartHandler) AddToCart(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code": 401,
-			"msg":  "未登录",
-		})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	var req service.AddToCartRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  "参数错误: " + err.Error(),
-		})
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	item, err := h.cartService.AddToCart(userID, &req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeCartAddFailed, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "添加成功",
-		"data": item,
-	})
+	response.OkWithData(c, item)
 }
 
 // List 获取购物车列表
@@ -547,32 +419,22 @@ func (h *CartHandler) AddToCart(c *gin.Context) {
 // @Tags 购物车
 // @Produce json
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/cart [get]
 func (h *CartHandler) List(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code": 401,
-			"msg":  "未登录",
-		})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	cart, err := h.cartService.GetCartList(userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeCartNotFound, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "success",
-		"data": cart,
-	})
+	response.OkWithData(c, cart)
 }
 
 // Update 更新购物车商品数量
@@ -584,48 +446,33 @@ func (h *CartHandler) List(c *gin.Context) {
 // @Param product_id query int true "商品ID"
 // @Param req body service.UpdateCartRequest true "数量"
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/cart [put]
 func (h *CartHandler) Update(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code": 401,
-			"msg":  "未登录",
-		})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	productID, _ := strconv.ParseUint(c.Query("product_id"), 10, 64)
 	if productID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  "商品ID不能为空",
-		})
+		response.BadRequest(c, "商品ID不能为空")
 		return
 	}
 
 	var req service.UpdateCartRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  "参数错误: " + err.Error(),
-		})
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	if err := h.cartService.UpdateCartItem(userID, uint(productID), &req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeCartUpdateFailed, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "更新成功",
-	})
+	response.Ok(c)
 }
 
 // Remove 从购物车删除商品
@@ -635,39 +482,27 @@ func (h *CartHandler) Update(c *gin.Context) {
 // @Produce json
 // @Param product_id query int true "商品ID"
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/cart [delete]
 func (h *CartHandler) Remove(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code": 401,
-			"msg":  "未登录",
-		})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	productID, _ := strconv.ParseUint(c.Query("product_id"), 10, 64)
 	if productID == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  "商品ID不能为空",
-		})
+		response.BadRequest(c, "商品ID不能为空")
 		return
 	}
 
 	if err := h.cartService.RemoveFromCart(userID, uint(productID)); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeCartDeleteFailed, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "删除成功",
-	})
+	response.Ok(c)
 }
 
 // Clear 清空购物车
@@ -676,28 +511,19 @@ func (h *CartHandler) Remove(c *gin.Context) {
 // @Tags 购物车
 // @Produce json
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/cart/clear [delete]
 func (h *CartHandler) Clear(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code": 401,
-			"msg":  "未登录",
-		})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	if err := h.cartService.ClearCart(userID); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeCartClearFailed, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "清空成功",
-	})
+	response.Ok(c)
 }

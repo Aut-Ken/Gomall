@@ -1,10 +1,10 @@
 package api
 
 import (
-	"net/http"
 	"strconv"
 
 	"gomall/internal/middleware"
+	"gomall/internal/response"
 	"gomall/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -35,42 +35,29 @@ type SeckillRequest struct {
 // @Produce json
 // @Param req body SeckillRequest true "秒杀请求"
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/seckill [post]
 func (h *SeckillHandler) Seckill(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	if userID == 0 {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"code": 401,
-			"msg":  "未登录",
-		})
+		response.Unauthorized(c, "未登录")
 		return
 	}
 
 	var req SeckillRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  "参数错误: " + err.Error(),
-		})
+		response.BadRequest(c, "参数错误: "+err.Error())
 		return
 	}
 
 	svcReq := &service.SeckillRequest{ProductID: req.ProductID}
-	response, err := h.seckillService.SeckillWithRedis(c.Request.Context(), userID, svcReq)
+	result, err := h.seckillService.SeckillWithRedis(c.Request.Context(), userID, svcReq)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  err.Error(),
-		})
+		response.FailWithMsg(c, response.CodeSeckillCreateOrderFail, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "秒杀成功",
-		"data": response,
-	})
+	response.OkWithData(c, result)
 }
 
 // InitStock 初始化秒杀库存（管理员接口）
@@ -82,17 +69,14 @@ func (h *SeckillHandler) Seckill(c *gin.Context) {
 // @Param product_id query int true "商品ID"
 // @Param stock query int true "库存数量"
 // @Security Bearer
-// @Success 200 {object} map[string]interface{}
+// @Success 200 {object} response.Response
 // @Router /api/seckill/init [post]
 func (h *SeckillHandler) InitStock(c *gin.Context) {
 	productIDStr := c.Query("product_id")
 	stockStr := c.Query("stock")
 
 	if productIDStr == "" || stockStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"code": 400,
-			"msg":  "参数错误",
-		})
+		response.BadRequest(c, "参数错误")
 		return
 	}
 
@@ -100,21 +84,14 @@ func (h *SeckillHandler) InitStock(c *gin.Context) {
 	productID, _ := strconv.ParseUint(productIDStr, 10, 64)
 	stock, _ := strconv.Atoi(stockStr)
 
-	// ✅ 使用转换后的真实参数进行初始化
+	// 使用转换后的真实参数进行初始化
 	if err := h.seckillService.InitSeckillStock(c.Request.Context(), uint(productID), stock); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"code": 500,
-			"msg":  "初始化失败: " + err.Error(),
-		})
+		response.ServerError(c, "初始化失败: "+err.Error())
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"code": 200,
-		"msg":  "初始化成功",
-		"data": gin.H{
-			"product_id": productID,
-			"stock":      stock,
-		},
+	response.OkWithData(c, gin.H{
+		"product_id": productID,
+		"stock":      stock,
 	})
 }

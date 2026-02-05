@@ -68,6 +68,16 @@ func (r *UserRepository) GetByEmail(email string) (*model.User, error) {
 	return &user, nil
 }
 
+// UpdatePassword 更新密码
+func (r *UserRepository) UpdatePassword(user *model.User) error {
+	return database.DB.Model(user).Update("password", user.Password).Error
+}
+
+// Update 更新用户
+func (r *UserRepository) Update(user *model.User) error {
+	return database.DB.Save(user).Error
+}
+
 // ProductRepository 商品数据访问层
 type ProductRepository struct{}
 
