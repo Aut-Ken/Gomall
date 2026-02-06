@@ -1,0 +1,65 @@
+# 数据库配置（开发环境）
+database:
+  host: "localhost"
+  port: 3306
+  username: "root"
+  password: ""
+  name: "Gomall"
+  max_idle_conns: 10
+  max_open_conns: 100
+
+# Redis 配置
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 100
+
+# 应用配置
+app:
+  host: "0.0.0.0"
+  port: 8080
+  mode: "debug"
+
+# JWT 配置
+jwt:
+  secret: "gomall-secret-key-dev-2024"
+  expire_hours: 24
+
+# RabbitMQ 配置
+rabbitmq:
+  host: "localhost"
+  port: 5672
+  username: "guest"
+  password: "guest"
+  queue_prefix: "gomall_dev_"
+
+# gRPC 配置
+grpc:
+  port: 50051
+
+# 链路追踪配置
+tracing:
+  enabled: false
+  service_name: "gomall-dev"
+  jaeger_endpoint: "localhost:4317"
+
+# 限流配置
+ratelimit:
+  enabled: true
+  global_rate: 1000
+  global_burst: 2000
+  api_rate: 100
+  api_burst: 200
+  seckill_rate: 5
+  seckill_burst: 10
+  login_rate: 10
+  login_burst: 20
+  use_redis: false
+
+# 日志配置
+logger:
+  level: "debug"
+  format: "console"
+  output: "stdout"

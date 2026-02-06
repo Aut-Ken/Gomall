@@ -1,0 +1,139 @@
+# 数据库配置
+database:
+  host: "localhost"
+  port: 3306
+  username: "root"
+  password: ""
+  name: "Gomall"
+  max_idle_conns: 10
+  max_open_conns: 100
+
+# Redis 配置
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 100
+
+# 应用配置
+app:
+  host: "0.0.0.0"
+  port: 8080
+  mode: "debug"  # debug, release, test
+  admin_ids: "1"  # 管理员ID列表，支持多个ID，用逗号分隔
+
+# JWT 配置
+jwt:
+  secret: ""             # 留空则从环境变量 GOMALL_JWT_SECRET 读取
+  private_key_path: ""   # 可选：使用RSA私钥签名时配置
+  expire_hours: 24
+  refresh_hours: 168    # Refresh Token 过期时间（小时），默认7天
+
+# 安全配置
+security:
+  csrf_enabled: true     # 是否启用CSRF保护
+  rate_limit_redis: false # 是否使用Redis分布式限流
+  max_ip_limiters: 10000 # IP限流器最大缓存数
+  session_timeout: 3600  # 会话超时时间（秒）
+  login_max_attempts: 5  # 登录最大尝试次数
+  lockout_duration: 900 # 锁定时长（秒）
+
+# RabbitMQ 配置 (Phase 3 使用)
+rabbitmq:
+  host: "localhost"
+  port: 5672
+  username: "guest"
+  password: "guest"
+  queue_prefix: "gomall_"
+
+# gRPC 配置
+grpc:
+  port: 50051
+  enabled: false  # 启用微服务模式
+
+# 服务注册与发现配置
+registry:
+  type: "memory"        # 注册中心类型: memory, redis, consul
+  host: "localhost"
+  port: 6379
+  service_prefix: "gomall_"
+
+# API 网关配置
+gateway:
+  enabled: false
+  port: 8080
+
+# 微服务配置（各服务独立部署时使用）
+services:
+  user:
+    enabled: false
+    host: "0.0.0.0"
+    port: 8081
+  product:
+    enabled: false
+    host: "0.0.0.0"
+    port: 8082
+  order:
+    enabled: false
+    host: "0.0.0.0"
+    port: 8083
+  stock:
+    enabled: false
+    host: "0.0.0.0"
+    port: 8084
+
+# 链路追踪配置 (Phase 4)
+tracing:
+  enabled: false
+  service_name: "gomall"
+  jaeger_endpoint: "localhost:4317"  # Jaeger OTLP gRPC 端口
+
+# 限流配置 (Phase 4)
+ratelimit:
+  enabled: true
+  global_rate: 1000      # 全局限流：每秒请求数
+  global_burst: 2000     # 全局限流：突发上限
+  api_rate: 100           # API限流：每秒请求数
+  api_burst: 200         # API限流：突发上限
+  seckill_rate: 5        # 秒杀限流：每秒请求数
+  seckill_burst: 10      # 秒杀限流：突发上限
+  login_rate: 10         # 登录限流：每秒请求数
+  login_burst: 20        # 登录限流：突发上限
+  use_redis: false       # 是否使用 Redis 分布式限流
+
+# 日志配置
+logger:
+  level: "info"         # debug, info, warn, error, fatal
+  format: "json"        # json 或 console
+  output: "stdout"      # stdout 或 file
+  filename: "app.log"   # 日志文件名（当output为file时生效）
+
+# 文件上传配置
+upload:
+  path: "./uploads"     # 上传文件保存路径
+  domain: "http://localhost:8080"  # 文件访问域名
+  max_size: 5          # 最大文件大小（MB）
+  allowed_types:        # 允许的文件类型
+    - "jpg"
+    - "jpeg"
+    - "png"
+    - "gif"
+
+# 微信支付配置（沙箱）
+wechat:
+  appid: ""             # 微信应用ID
+  mch_id: ""            # 商户号
+  key: ""               # 密钥（沙箱密钥）
+  notify_url: ""        # 支付回调URL
+  trade_type: "NATIVE"  # 交易类型
+  sandbox: true         # 是否使用沙箱
+
+# 支付宝配置（沙箱）
+alipay:
+  appid: ""             # 支付宝应用ID
+  private_key: ""       # 私钥
+  public_key: ""        # 支付宝公钥
+  notify_url: ""        # 支付回调URL
+  sandbox: true         # 是否使用沙箱
+  return_url: ""        # 支付返回URL

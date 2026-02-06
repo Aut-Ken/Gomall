@@ -199,7 +199,7 @@ go mod tidy
 
 ### 3. 配置数据库
 
-编辑 `conf/config-dev.yaml`：
+编辑 `backend/conf/config-dev.yaml`：
 
 ```yaml
 database:
@@ -233,12 +233,15 @@ wechat:
 ### 4. 初始化数据库
 
 ```bash
-mysql -u root -p < deploy/mysql/init.sql
+mysql -u root -p < backend/deploy/mysql/init.sql
 ```
 
 ### 5. 启动服务
 
 ```bash
+# 后端服务
+cd backend
+
 # 开发模式 (默认使用 config-dev.yaml)
 make run
 
@@ -247,6 +250,10 @@ make run-prod
 
 # 或直接运行
 go run main.go -env dev
+
+# 前端服务 (新终端)
+cd frontend
+npm run dev
 ```
 
 ### 6. 访问服务
@@ -473,6 +480,8 @@ docker-compose down
 ## Makefile 命令
 
 ```bash
+cd backend
+
 make deps          # 下载依赖
 make build         # 编译项目
 make run           # 开发模式运行

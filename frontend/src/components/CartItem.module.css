@@ -1,0 +1,139 @@
+.item {
+  display: grid;
+  grid-template-columns: auto 1fr auto auto auto;
+  gap: 20px;
+  align-items: center;
+  padding: 20px;
+  background: var(--bg-primary);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.product {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.image {
+  width: 80px;
+  height: 80px;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg-tertiary);
+  flex-shrink: 0;
+}
+
+.image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.placeholder svg {
+  width: 24px;
+  height: 24px;
+}
+
+.info h3 {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.price {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.quantity {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.quantity button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: var(--bg-tertiary);
+  font-size: 16px;
+  color: var(--text-primary);
+  transition: var(--transition);
+}
+
+.quantity button:hover:not(:disabled) {
+  background: var(--border);
+}
+
+.quantity button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quantity span {
+  width: 48px;
+  text-align: center;
+  font-weight: 500;
+}
+
+.subtotal {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.remove {
+  padding: 8px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  transition: var(--transition);
+}
+
+.remove:hover:not(:disabled) {
+  color: var(--danger);
+}
+
+.remove:disabled {
+  opacity: 0.5;
+}
+
+.remove svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (max-width: 768px) {
+  .item {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    text-align: center;
+  }
+
+  .product {
+    flex-direction: column;
+  }
+
+  .quantity {
+    justify-content: center;
+  }
+
+  .remove {
+    margin: 0 auto;
+  }
+}
