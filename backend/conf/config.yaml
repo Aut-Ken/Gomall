@@ -1,6 +1,6 @@
 # 数据库配置
 database:
-  host: "localhost"
+  host: "127.0.0.1"  # 使用IPv4地址
   port: 3306
   username: "root"
   password: ""
@@ -32,7 +32,7 @@ jwt:
 
 # 安全配置
 security:
-  csrf_enabled: true     # 是否启用CSRF保护
+  csrf_enabled: false    # 是否启用CSRF保护（暂时禁用）
   rate_limit_redis: false # 是否使用Redis分布式限流
   max_ip_limiters: 10000 # IP限流器最大缓存数
   session_timeout: 3600  # 会话超时时间（秒）

@@ -34,7 +34,7 @@ func Setup(r *gin.Engine) {
 	r.Use(middleware.SecurityHeadersMiddleware())
 	r.Use(middleware.LogSanitizerMiddleware())
 	r.Use(middleware.MetricsMiddleware())
-	r.Use(middleware.GlobalRateLimit())
+	// r.Use(middleware.GlobalRateLimit()) // 临时禁用全局限流
 
 	// 健康检查（无中间件，快速响应）
 	r.GET("/health", healthCheck.Health)
@@ -63,8 +63,8 @@ func Setup(r *gin.Engine) {
 		userGroup := apiGroup.Group("/user")
 		{
 			userGroup.POST("/register", userHandler.Register)
-			// 登录接口添加限流
-			userGroup.POST("/login", middleware.LoginRateLimit(), userHandler.Login)
+			// 登录接口暂不限流
+			userGroup.POST("/login", userHandler.Login)
 		}
 
 		// 商品模块（部分需要登录）
