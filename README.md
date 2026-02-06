@@ -4,6 +4,8 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.23-blue.svg)](https://go.dev/)
 [![Gin Framework](https://img.shields.io/badge/Gin-1.9-green.svg)](https://gin-gonic.com/)
+[![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-blue.svg)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
@@ -27,7 +29,8 @@ GoMall 是一个从**单体架构逐步演进到微服务架构**的电商实战
 
 ## 技术栈
 
-### 核心开发
+### 后端技术
+
 | 技术 | 版本 | 用途 |
 |------|------|------|
 | Go | 1.23+ | 后端开发语言 |
@@ -35,8 +38,22 @@ GoMall 是一个从**单体架构逐步演进到微服务架构**的电商实战
 | GORM | v1.25.5 | MySQL ORM |
 | gRPC | v1.60.1 | 微服务通信 |
 | Viper | v1.18.2 | 配置管理 |
+| JWT | - | 认证授权 |
+| bcrypt | - | 密码加密 |
+
+### 前端技术
+
+| 技术 | 版本 | 用途 |
+|------|------|------|
+| React | 18+ | UI 框架 |
+| TypeScript | 5+ | 类型安全 |
+| Vite | 5+ | 构建工具 |
+| Axios | - | HTTP 客户端 |
+| Zustand | - | 状态管理 |
+| React Router | - | 路由管理 |
 
 ### 中间件
+
 | 技术 | 版本 | 用途 |
 |------|------|------|
 | MySQL | 8.0+ | 持久化存储 |
@@ -44,6 +61,7 @@ GoMall 是一个从**单体架构逐步演进到微服务架构**的电商实战
 | RabbitMQ | 3.12+ | 流量削峰、异步解耦 |
 
 ### 运维监控
+
 | 技术 | 用途 |
 |------|------|
 | OpenTelemetry + Jaeger | 分布式链路追踪 |
@@ -55,6 +73,8 @@ GoMall 是一个从**单体架构逐步演进到微服务架构**的电商实战
 ---
 
 ## 架构设计
+
+### 系统架构图
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -84,7 +104,7 @@ GoMall 是一个从**单体架构逐步演进到微服务架构**的电商实战
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
                                  │
-│              ┌──────────────────┼──────────────────┐
+              ┌──────────────────┼──────────────────┐
               ▼                  ▼                  ▼
        ┌──────────┐      ┌──────────┐      ┌──────────┐
        │  MySQL   │      │  Redis   │      │RabbitMQ  │
@@ -120,56 +140,99 @@ GoMall 是一个从**单体架构逐步演进到微服务架构**的电商实战
 
 ```
 gomall/
-├── cmd/                      # 程序入口
-│   └── main.go               # 主程序入口
-├── conf/                     # 配置文件
-│   ├── config.yaml           # 默认配置
-│   ├── config-dev.yaml       # 开发环境
-│   └── config-prod.yaml      # 生产环境
-├── deploy/                   # 部署配置
-│   ├── docker-compose.yml    # Docker Compose
-│   └── mysql/init.sql        # 数据库初始化
-├── docs/                     # Swagger 文档
-├── internal/                 # 内部业务代码
-│   ├── api/                  # HTTP Handlers
-│   │   ├── handler.go        # 用户/商品/订单处理器
-│   │   ├── cart_handler.go   # 购物车
-│   │   ├── seckill_handler.go # 秒杀
-│   │   ├── auth_handler.go   # 认证（JWT刷新/改密/退出）
-│   │   ├── file_handler.go   # 文件上传
-│   │   ├── wechat_pay_handler.go # 微信支付
-│   │   └── health_check.go   # 健康检查
-│   ├── config/               # 配置加载
-│   ├── database/             # MySQL 连接
-│   ├── gateway/              # API 网关
-│   ├── grpc/                 # gRPC 服务
-│   ├── logger/               # Zap 日志
-│   ├── metrics/              # Prometheus 指标
-│   ├── middleware/           # 中间件
-│   │   ├── auth.go           # JWT 认证
-│   │   ├── ratelimit.go      # 限流
-│   │   ├── validator.go      # 参数校验
-│   │   └── metrics.go        # 指标
-│   ├── model/                # 数据模型
-│   ├── rabbitmq/             # 消息队列
-│   ├── redis/                # Redis 客户端
-│   ├── registry/             # 服务注册发现
-│   ├── repository/           # 数据访问层
-│   ├── response/             # 统一响应 + 错误码
-│   ├── router/               # 路由配置
-│   ├── service/              # 业务逻辑
-│   │   ├── service.go        # 基础服务
-│   │   ├── seckill.go        # 秒杀核心
-│   │   └── wechat_pay.go     # 微信支付
-│   └── tracing/              # 链路追踪
-├── pkg/                      # 公共工具
-│   ├── jwt/                  # JWT 工具
-│   └── password/              # 密码加密
-├── scripts/                  # 运维脚本
-├── ARCHITECTURE.md           # 架构文档
-├── Dockerfile
-├── Makefile
-└── README.md
+├── backend/                    # 后端服务 (Go + Gin)
+│   ├── main.go                 # 程序入口
+│   ├── Makefile                # 构建脚本
+│   ├── Dockerfile              # Docker 构建文件
+│   ├── go.mod / go.sum         # Go 依赖管理
+│   ├── conf/                   # 配置文件
+│   │   ├── config.yaml         # 默认配置
+│   │   ├── config-dev.yaml     # 开发环境配置
+│   │   └── config-prod.yaml    # 生产环境配置
+│   ├── deploy/                 # 部署配置
+│   │   ├── docker-compose.yml      # Docker Compose (单体架构)
+│   │   ├── docker-compose-microservices.yml  # Docker Compose (微服务)
+│   │   └── mysql/
+│   │       └── init.sql        # 数据库初始化脚本
+│   ├── internal/               # 内部业务代码
+│   │   ├── api/                # HTTP Handlers (Controller层)
+│   │   │   ├── handler.go              # 用户/商品/订单处理器
+│   │   │   ├── cart_handler.go         # 购物车
+│   │   │   ├── seckill_handler.go      # 秒杀
+│   │   │   ├── auth_handler.go         # 认证（JWT刷新/改密/退出）
+│   │   │   ├── file_handler.go         # 文件上传
+│   │   │   ├── wechat_pay_handler.go   # 微信支付
+│   │   │   └── health_check.go         # 健康检查
+│   │   ├── config/             # 配置加载
+│   │   ├── database/           # MySQL 连接
+│   │   ├── gateway/            # API 网关
+│   │   ├── grpc/               # gRPC 服务
+│   │   ├── logger/             # Zap 日志
+│   │   ├── metrics/            # Prometheus 指标
+│   │   ├── middleware/         # 中间件
+│   │   │   ├── auth.go         # JWT 认证
+│   │   │   ├── ratelimit.go    # 限流
+│   │   │   ├── validator.go    # 参数校验
+│   │   │   ├── metrics.go      # 指标
+│   │   │   ├── logger.go       # 日志
+│   │   │   ├── error_handler.go # 错误处理
+│   │   │   ├── csrf.go         # CSRF 防护
+│   │   │   └── security.go     # 安全中间件
+│   │   ├── model/              # 数据模型
+│   │   ├── rabbitmq/           # 消息队列
+│   │   ├── redis/              # Redis 客户端 + Lua脚本
+│   │   ├── registry/           # 服务注册发现
+│   │   ├── repository/         # 数据访问层
+│   │   ├── response/           # 统一响应 + 错误码
+│   │   ├── router/             # 路由配置
+│   │   ├── service/            # 业务逻辑
+│   │   │   ├── service.go      # 基础服务
+│   │   │   ├── seckill.go      # 秒杀核心
+│   │   │   └── wechat_pay.go   # 微信支付
+│   │   ├── tracing/            # 链路追踪
+│   │   ├── circuitbreaker/     # 熔断器
+│   │   └── security/           # 安全工具
+│   └── scripts/                # 运维脚本
+│
+├── frontend/                   # 前端应用 (React + TypeScript + Vite)
+│   ├── package.json
+│   ├── vite.config.ts          # Vite 配置
+│   ├── tsconfig.json           # TypeScript 配置
+│   └── src/
+│       ├── main.tsx            # 应用入口
+│       ├── App.tsx             # 主应用组件
+│       ├── api/                # API 接口封装
+│       │   ├── request.ts      # Axios 实例配置 + 拦截器
+│       │   ├── user.ts         # 用户相关 API
+│       │   ├── product.ts      # 商品相关 API
+│       │   ├── order.ts        # 订单相关 API
+│       │   ├── cart.ts         # 购物车 API
+│       │   ├── seckill.ts      # 秒杀 API
+│       │   └── types.ts        # 类型定义
+│       ├── components/         # 可复用组件
+│       │   ├── Header.tsx      # 顶部导航栏
+│       │   ├── Footer.tsx      # 底部
+│       │   ├── ProductCard.tsx # 商品卡片
+│       │   └── CartItem.tsx    # 购物车项
+│       ├── pages/              # 页面组件
+│       │   ├── Home.tsx        # 首页
+│       │   ├── Products.tsx    # 商品列表
+│       │   ├── ProductDetail.tsx # 商品详情
+│       │   ├── Login.tsx       # 登录页
+│       │   ├── Register.tsx    # 注册页
+│       │   ├── Cart.tsx        # 购物车
+│       │   ├── Orders.tsx      # 订单列表
+│       │   ├── Seckill.tsx     # 秒杀活动
+│       │   └── Auth.tsx        # 认证页面
+│       ├── store/              # 状态管理 (Zustand)
+│       │   └── index.ts        # Store 定义
+│       └── styles/             # 样式文件
+│
+├── docs/                       # Swagger API 文档
+├── ARCHITECTURE.md             # 架构设计文档
+├── README.md                   # 项目说明文档
+├── instruction.txt             # 说明文件
+└── Makefile                    # 后端 Makefile
 ```
 
 ---
@@ -178,10 +241,13 @@ gomall/
 
 ### 环境要求
 
-- Go 1.23+
-- MySQL 8.0
-- Redis 7.0+
-- RabbitMQ 3.12+ (可选)
+| 组件 | 版本 | 说明 |
+|------|------|------|
+| Go | 1.23+ | 后端开发 |
+| Node.js | 18+ | 前端开发 |
+| MySQL | 8.0+ | 数据库 |
+| Redis | 7.0+ | 缓存 |
+| RabbitMQ | 3.12+ | 消息队列（可选） |
 
 ### 1. 克隆项目
 
@@ -190,76 +256,44 @@ git clone https://github.com/yourusername/gomall.git
 cd gomall
 ```
 
-### 2. 安装依赖
+### 2. 启动后端
 
 ```bash
-go mod download
-go mod tidy
-```
-
-### 3. 配置数据库
-
-编辑 `backend/conf/config-dev.yaml`：
-
-```yaml
-database:
-  host: "localhost"
-  port: 3306
-  username: "root"
-  password: "your_password"
-  name: "gomall"
-
-redis:
-  host: "localhost"
-  port: 6379
-  password: ""
-
-rabbitmq:
-  host: "localhost"
-  port: 5672
-  username: "guest"
-  password: "guest"
-
-# 微信支付配置（沙箱）
-wechat:
-  appid: "your_appid"
-  mch_id: "your_mch_id"
-  key: "your_api_key"
-  notify_url: "http://your-domain/api/pay/wechat/notify"
-  trade_type: "NATIVE"
-  sandbox: true
-```
-
-### 4. 初始化数据库
-
-```bash
-mysql -u root -p < backend/deploy/mysql/init.sql
-```
-
-### 5. 启动服务
-
-```bash
-# 后端服务
 cd backend
 
-# 开发模式 (默认使用 config-dev.yaml)
+# 安装依赖
+go mod download
+go mod tidy
+
+# 配置数据库
+# 编辑 conf/config-dev.yaml 配置 MySQL、Redis、RabbitMQ 连接
+
+# 初始化数据库
+mysql -u root -p < deploy/mysql/init.sql
+
+# 启动服务
 make run
-
-# 生产模式 (使用 config-prod.yaml)
-make run-prod
-
-# 或直接运行
+# 或
 go run main.go -env dev
+```
 
-# 前端服务 (新终端)
+### 3. 启动前端
+
+```bash
 cd frontend
+
+# 安装依赖
+npm install
+
+# 启动开发服务器
 npm run dev
 ```
 
-### 6. 访问服务
+### 4. 访问服务
 
 | 服务 | 地址 |
 |------|------|
+| 前端应用 | http://localhost:5173 |
 | API 服务 | http://localhost:8080 |
 | 健康检查 | http://localhost:8080/health |
 | 就绪检查 | http://localhost:8080/ready |
@@ -323,13 +357,6 @@ npm run dev
 | POST | `/api/seckill` | 秒杀接口 (需登录) |
 | POST | `/api/seckill/init` | 初始化库存 (需管理员) |
 
-### 文件上传模块
-
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/upload` | 单文件上传 (需登录) |
-| POST | `/api/upload/multi` | 多文件上传 (需登录) |
-
 ### 微信支付模块
 
 | 方法 | 路径 | 说明 |
@@ -339,6 +366,13 @@ npm run dev
 | POST | `/api/pay/wechat/close` | 关闭订单 (需登录) |
 | POST | `/api/pay/wechat/refund` | 申请退款 (需登录) |
 | POST | `/api/pay/wechat/notify` | 支付回调 (无需认证) |
+
+### 文件上传模块
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/api/upload` | 单文件上传 (需登录) |
+| POST | `/api/upload/multi` | 多文件上传 (需登录) |
 
 ---
 
@@ -355,7 +389,7 @@ npm run dev
 }
 ```
 
-### 错误码示例
+### 错误码体系
 
 | 错误码 | 说明 |
 |--------|------|
@@ -365,10 +399,13 @@ npm run dev
 | 403 | 无权限 |
 | 404 | 不存在 |
 | 500 | 系统错误 |
-| 10001 | 用户不存在 |
-| 20001 | 商品不存在 |
-| 30001 | 订单不存在 |
-| 40001 | 支付创建失败 |
+| 10001-10099 | 用户模块 |
+| 20001-20099 | 商品模块 |
+| 30001-30099 | 订单模块 |
+| 40001-40099 | 支付模块 |
+| 50001-50099 | 购物车模块 |
+| 60001-60099 | 秒杀模块 |
+| 70001-70099 | 文件上传模块 |
 
 ---
 
@@ -513,16 +550,18 @@ make help          # 显示帮助
 | Phase 7 | ✅ | JWT刷新、修改密码、退出登录 |
 | Phase 8 | ✅ | 文件上传功能 |
 | Phase 9 | ✅ | 微信支付（沙箱） |
+| Phase 10 | ✅ | 前端界面（React + TypeScript） |
 
 ---
 
 ## 下一步计划
 
-- [ ] 接入前端（Vue/React）
 - [ ] 支付宝支付（正式环境）
 - [ ] 订单超时自动取消（定时任务）
 - [ ] 消息推送（WebSocket）
 - [ ] 缓存优化（多级缓存）
+- [ ] 单元测试覆盖率提升
+- [ ] Kubernetes 部署支持
 
 ---
 
