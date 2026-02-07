@@ -14,7 +14,12 @@
       "Bash(dir:*)",
       "WebSearch",
       "Bash(go clean:*)",
-      "WebFetch(domain:platform.minimaxi.com)"
+      "WebFetch(domain:platform.minimaxi.com)",
+      "Bash(find:*)",
+      "Bash(while read f)",
+      "Bash(do grep:*)",
+      "Bash(done)",
+      "Bash(powershell:*)"
     ]
   }
 }

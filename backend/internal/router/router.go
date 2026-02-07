@@ -110,9 +110,7 @@ func Setup(r *gin.Engine) {
 		// 秒杀管理（需要管理员权限）
 		seckillAdminGroup := apiGroup.Group("/seckill")
 		seckillAdminGroup.Use(middleware.AdminAuthMiddleware())
-		{
-			seckillAdminGroup.POST("/init", seckillHandler.InitStock) // 初始化库存: POST /api/seckill/init
-		}
+		seckillAdminGroup.POST("/init", seckillHandler.InitStock) // 初始化库存: POST /api/seckill/init
 
 		// --- 新增：购物车模块 ---
 		cartGroup := apiGroup.Group("/cart")
