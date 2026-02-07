@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { useAuthStore } from './store';
 import { userApi } from './api/user';
@@ -14,30 +14,35 @@ import Orders from './pages/Orders';
 import Seckill from './pages/Seckill';
 
 // 简单的加载骨架屏
-function Loading() {
-  return (
-    <div style={{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      height: '100vh',
-      background: '#f8fafc'
-    }}>
-      <div style={{
-        width: '40px',
-        height: '40px',
-        border: '3px solid #e2e8f0',
-        borderTopColor: '#2563eb',
-        borderRadius: '50%',
-        animation: 'spin 0.8s linear infinite'
-      }} />
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-    </div>
-  );
-}
+// 简单的加载骨架屏
+// function Loading() {
+//   return (
+//     <div style={{
+//       display: 'flex',
+//       justifyContent: 'center',
+//       alignItems: 'center',
+//       height: '100vh',
+//       background: '#f8fafc'
+//     }}>
+//       <div style={{
+//         width: '40px',
+//         height: '40px',
+//         border: '3px solid #e2e8f0',
+//         borderTopColor: '#2563eb',
+//         borderRadius: '50%',
+//         animation: 'spin 0.8s linear infinite'
+//       }} />
+//       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+//     </div>
+//   );
+// }
 
 function App() {
-  const { setAuth, isAuthenticated, token } = useAuthStore();
+  const { setAuth, isAuthenticated } = useAuthStore();
+
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+
+  console.log('App rendering, isAuthenticated:', isAuthenticated);
 
   // 初始化时检查登录状态
   useEffect(() => {
@@ -53,12 +58,15 @@ function App() {
           localStorage.removeItem('token');
         }
       }
+      setIsAuthChecking(false);
     };
 
-    if (token || localStorage.getItem('token')) {
-      initAuth();
-    }
-  }, [token, isAuthenticated, setAuth]);
+    initAuth();
+  }, [isAuthenticated, setAuth]); // Removed token from dependency to prevent infinite loop if token changes
+
+  if (isAuthChecking) {
+    return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading...</div>;
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>

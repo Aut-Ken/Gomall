@@ -37,10 +37,10 @@ export default function Footer() {
           <div className={styles.links}>
             <h4>帮助中心</h4>
             <ul>
-              <li><a href="#">购物指南</a></li>
-              <li><a href="#">支付方式</a></li>
-              <li><a href="#">配送说明</a></li>
-              <li><a href="#">售后服务</a></li>
+              <li><Link to="/products">购物指南</Link></li>
+              <li><Link to="/cart">支付方式</Link></li>
+              <li><Link to="/orders">配送说明</Link></li>
+              <li><Link to="/">售后服务</Link></li>
             </ul>
           </div>
 

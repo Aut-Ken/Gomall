@@ -377,3 +377,11 @@ INSERT INTO `orders` (`order_no`, `user_id`, `product_id`, `product_name`, `quan
 ('ORD202401180015', 5, 40, 'DJI Mini 4 Pro', 1, 7388.00, 1, 1, NOW() - INTERVAL 2 HOUR, NOW()),
 ('ORD202401180016', 9, 41, 'Keychron K2', 1, 648.00, 1, 1, NOW() - INTERVAL 1 HOUR, NOW()),
 ('ORD202401180017', 10, 39, 'Samsung 990 Pro 1TB', 2, 1998.00, 1, 3, NOW(), NOW());
+
+UPDATE users 
+SET password = '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy' 
+WHERE username = 'admin';
+
+-- 给 users 表补上缺失的 role 字段
+ALTER TABLE `users` 
+ADD COLUMN `role` tinyint(4) NOT NULL DEFAULT 1 COMMENT '角色 1:普通用户 2:管理员';

@@ -203,6 +203,10 @@ type Order struct {
 	// 商品信息变更时不影响历史订单
 	ProductName string `gorm:"column:product_name;size:200" json:"product_name"`
 
+	// ProductImage 商品图片快照
+	// 下单时的商品图片，防止商品图片变更后订单图片不一致
+	ProductImage string `gorm:"column:product_image;size:500" json:"product_image"`
+
 	// Quantity 购买数量，默认1
 	Quantity int `gorm:"column:quantity;not null;default:1" json:"quantity"`
 

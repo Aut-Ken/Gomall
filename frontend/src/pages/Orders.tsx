@@ -12,6 +12,8 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState<string | null>(null);
 
+  console.log('Orders rendering, isAuthenticated:', isAuthenticated, 'loading:', loading, 'orders:', orders);
+
   useEffect(() => {
     if (isAuthenticated) {
       loadOrders();
@@ -24,7 +26,10 @@ export default function Orders() {
     try {
       const res = await orderApi.getList();
       if (res.code === 0) {
-        setOrders(res.data || []);
+        // The backend returns a pagination object { list: [], total: ... }
+        // We need to check if res.data is an array or an object with a list property
+        const orderList = Array.isArray(res.data) ? res.data : (res.data as any)?.list || [];
+        setOrders(orderList);
       }
     } catch (error) {
       console.error('加载订单失败:', error);
@@ -67,10 +72,18 @@ export default function Orders() {
 
   const getStatusText = (status: number) => {
     switch (status) {
+      case 0:
+        return { text: '处理中', class: styles.statusProcessing };
       case 1:
         return { text: '待支付', class: styles.statusPending };
       case 2:
         return { text: '已支付', class: styles.statusPaid };
+      case 3:
+        return { text: '已发货', class: styles.statusShipped };
+      case 4:
+        return { text: '已完成', class: styles.statusCompleted };
+      case 5:
+        return { text: '已取消', class: styles.statusCancelled };
       default:
         return { text: '未知状态', class: '' };
     }
@@ -140,14 +153,29 @@ export default function Orders() {
         </div>
 
         <div className={styles.list}>
-          {orders.map((order) => {
-            const status = getStatusText(order.status);
+          {(orders || []).map((order) => {
+            if (!order) return null;
+            const status = getStatusText(order.status || 0);
+
+            let createdDate = '未知时间';
+            try {
+              if (order.created_at) {
+                // Fix for Safari/Firefox: ensure ISO format by replacing space with T if needed
+                const safeDateStr = order.created_at.replace(' ', 'T');
+                createdDate = new Date(safeDateStr).toLocaleString();
+              }
+            } catch (e) {
+              console.error('Date parsing error', e);
+            }
+
+            const totalPrice = typeof order.total_price === 'number' ? order.total_price : 0;
+
             return (
               <div key={order.id} className={styles.orderCard}>
                 <div className={styles.orderHeader}>
                   <div className={styles.orderInfo}>
                     <span className={styles.orderNo}>订单号: {order.order_no}</span>
-                    <span className={styles.orderDate}>{new Date(order.created_at).toLocaleString()}</span>
+                    <span className={styles.orderDate}>{createdDate}</span>
                   </div>
                   <span className={`${styles.status} ${status.class}`}>
                     {status.text}
@@ -178,9 +206,13 @@ export default function Orders() {
                   <div className={styles.orderFooter}>
                     <div className={styles.total}>
                       <span>实付金额:</span>
-                      <span className={styles.price}>¥{order.total_price.toFixed(2)}</span>
+                      <span className={styles.price}>¥{totalPrice.toFixed(2)}</span>
                     </div>
                     <div className={styles.actions}>
+                      {order.status === 0 && (
+                        <span className={styles.pendingInfo}>订单处理中...</span>
+                      )}
+
                       {order.status === 1 && (
                         <>
                           <button
@@ -200,6 +232,9 @@ export default function Orders() {
                       )}
                       {order.status === 2 && (
                         <span className={styles.paidInfo}>订单已完成</span>
+                      )}
+                      {order.status === 5 && (
+                        <span className={styles.cancelledInfo}>订单已取消</span>
                       )}
                     </div>
                   </div>

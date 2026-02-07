@@ -20,10 +20,10 @@ var Channel *amqp.Channel
 
 // QueueName 队列名称常量
 const (
-	OrderQueue    = "order_queue"    // 订单创建队列
-	SeckillQueue  = "seckill_queue"  // 秒杀队列
-	PayQueue      = "pay_queue"      // 支付队列
-	DelayQueue    = "delay_queue"    // 延迟队列（用于订单超时取消）
+	OrderQueue   = "order_queue"   // 订单创建队列
+	SeckillQueue = "seckill_queue" // 秒杀队列
+	PayQueue     = "pay_queue"     // 支付队列
+	DelayQueue   = "delay_queue"   // 延迟队列（用于订单超时取消）
 )
 
 // Init 初始化RabbitMQ连接
@@ -54,12 +54,12 @@ func Init() error {
 	queues := []string{OrderQueue, SeckillQueue, PayQueue, DelayQueue}
 	for _, queue := range queues {
 		_, err = Channel.QueueDeclare(
-			queue,                      // 队列名称
-			true,                       // 持久化
-			false,                      // 不自动删除
-			false,                      // 不排他
-			false,                      // 不阻塞
-			amqp.Table{                 // 额外参数
+			queue, // 队列名称
+			true,  // 持久化
+			false, // 不自动删除
+			false, // 不排他
+			false, // 不阻塞
+			amqp.Table{ // 额外参数
 				"x-message-ttl": 86400000, // 消息24小时过期
 			},
 		)
@@ -95,9 +95,9 @@ func Init() error {
 		false,          // 不排他
 		false,          // 不阻塞
 		amqp.Table{
-			"x-dead-letter-exchange":    "",                     // 死信交换机
-			"x-dead-letter-routing-key": DelayQueue,             // 死信路由键
-			"x-message-ttl":             1800000,                // 30分钟后变为死信
+			"x-dead-letter-exchange":    "",         // 死信交换机
+			"x-dead-letter-routing-key": DelayQueue, // 死信路由键
+			"x-message-ttl":             1800000,    // 30分钟后变为死信
 		},
 	)
 	if err != nil {
@@ -106,7 +106,7 @@ func Init() error {
 
 	// 绑定延迟队列到死信交换机
 	err = Channel.QueueBind(
-		delayQueueName, // 队列名称
+		delayQueueName,  // 队列名称
 		delayRoutingKey, // 路由键
 		delayExchange,   // 交换机名称
 		false,
@@ -149,13 +149,14 @@ func GetRabbitMQConfig() *viper.Viper {
 
 // OrderMessage 订单消息结构
 type OrderMessage struct {
-	OrderNo     string    `json:"order_no"`
-	UserID      uint      `json:"user_id"`
-	ProductID   uint      `json:"product_id"`
-	ProductName string    `json:"product_name"`
-	Quantity    int       `json:"quantity"`
-	TotalPrice  float64   `json:"total_price"`
-	CreatedAt   time.Time `json:"created_at"`
+	OrderNo      string    `json:"order_no"`
+	UserID       uint      `json:"user_id"`
+	ProductID    uint      `json:"product_id"`
+	ProductName  string    `json:"product_name"`
+	ProductImage string    `json:"product_image"`
+	Quantity     int       `json:"quantity"`
+	TotalPrice   float64   `json:"total_price"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // PublishOrderMessage 发布订单创建消息
@@ -193,10 +194,10 @@ func PublishDelayOrderMessage(ctx context.Context, orderNo string, delay time.Du
 
 	err = Channel.PublishWithContext(
 		ctx,
-		"delay_exchange",   // 延迟交换机
-		"delay_order",      // 延迟路由键
-		false,              // 强制
-		false,              // 立即
+		"delay_exchange", // 延迟交换机
+		"delay_order",    // 延迟路由键
+		false,            // 强制
+		false,            // 立即
 		amqp.Publishing{
 			DeliveryMode: amqp.Persistent,
 			ContentType:  "application/json",
@@ -213,9 +214,9 @@ func PublishDelayOrderMessage(ctx context.Context, orderNo string, delay time.Du
 
 // SeckillMessage 秒杀消息结构
 type SeckillMessage struct {
-	UserID      uint `json:"user_id"`
-	ProductID   uint `json:"product_id"`
-	RequestID   int64 `json:"request_id"` // 请求ID，用于去重
+	UserID    uint  `json:"user_id"`
+	ProductID uint  `json:"product_id"`
+	RequestID int64 `json:"request_id"` // 请求ID，用于去重
 }
 
 // PublishSeckillMessage 发布秒杀消息
@@ -227,10 +228,10 @@ func PublishSeckillMessage(ctx context.Context, msg *SeckillMessage) error {
 
 	err = Channel.PublishWithContext(
 		ctx,
-		"",          // 默认交换机
+		"",           // 默认交换机
 		SeckillQueue, // 秒杀队列
-		false,       // 强制
-		false,       // 立即
+		false,        // 强制
+		false,        // 立即
 		amqp.Publishing{
 			DeliveryMode: amqp.Persistent,
 			ContentType:  "application/json",
@@ -301,6 +302,7 @@ func ConsumeSeckillMessage(handler func(msg *SeckillMessage) error) {
 			msg.Nack(false, false)
 			continue
 		}
+		logger.Info("RabbitMQ Consumer收到秒杀消息", zap.Any("msg", seckillMsg))
 
 		if err := handler(&seckillMsg); err != nil {
 			logger.Error("秒杀处理失败", zap.Uint("user_id", seckillMsg.UserID), zap.Uint("product_id", seckillMsg.ProductID), zap.Error(err))

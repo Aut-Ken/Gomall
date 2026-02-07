@@ -1,6 +1,6 @@
 # 数据库配置（开发环境）
 database:
-  host: "localhost"
+  host: "127.0.0.1"
   port: 3306
   username: "root"
   password: ""
@@ -10,7 +10,7 @@ database:
 
 # Redis 配置
 redis:
-  host: "localhost"
+  host: "127.0.0.1"
   port: 6379
   password: ""
   db: 0
@@ -29,7 +29,7 @@ jwt:
 
 # RabbitMQ 配置
 rabbitmq:
-  host: "localhost"
+  host: "127.0.0.1"
   port: 5672
   username: "guest"
   password: "guest"

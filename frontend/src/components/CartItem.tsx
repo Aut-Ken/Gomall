@@ -56,7 +56,7 @@ export default function CartItemComponent({ item }: CartItemProps) {
         </div>
         <div className={styles.info}>
           <h3>{item.product_name}</h3>
-          <p className={styles.price}>¥{item.product_price.toFixed(2)}</p>
+          <p className={styles.price}>¥{(item.price || 0).toFixed(2)}</p>
         </div>
       </div>
 
@@ -77,7 +77,7 @@ export default function CartItemComponent({ item }: CartItemProps) {
       </div>
 
       <div className={styles.subtotal}>
-        ¥{(item.product_price * item.quantity).toFixed(2)}
+        ¥{((item.price || 0) * (item.quantity || 1)).toFixed(2)}
       </div>
 
       <button className={styles.remove} onClick={handleRemove} disabled={loading}>

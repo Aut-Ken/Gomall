@@ -11,7 +11,7 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const cartCount = items.reduce((sum, item) => sum + item.quantity, 0);
+  const cartCount = (items || []).reduce((sum, item) => sum + item.quantity, 0);
 
   const handleLogout = () => {
     logout();

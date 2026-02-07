@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { cartApi } from '../api/cart';
-import { CartItem } from '../api/cart';
+
 import { useCartStore, useAuthStore } from '../store';
 import CartItemComponent from '../components/CartItem';
 import toast from 'react-hot-toast';
@@ -24,9 +24,12 @@ export default function Cart() {
       return;
     }
     try {
-      const res = await cartApi.getList();
+      const res = await cartApi.getList() as any;
       if (res.code === 0) {
-        setCart(res.data || []);
+        // Backend returns { items: [], total_count: ..., total_price: ... }
+        const cartData = res.data as any;
+        const cartList = Array.isArray(cartData) ? cartData : cartData?.items || [];
+        setCart(cartList);
       }
     } catch (error) {
       console.error('加载购物车失败:', error);
@@ -39,7 +42,7 @@ export default function Cart() {
     if (!window.confirm('确定要清空购物车吗？')) return;
     setClearing(true);
     try {
-      const res = await cartApi.clear();
+      const res = await cartApi.clear() as any;
       if (res.code === 0) {
         clearCart();
         toast.success('购物车已清空');
@@ -51,7 +54,7 @@ export default function Cart() {
     }
   };
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (!isAuthenticated) {
       toast.error('请先登录');
       navigate('/login');
@@ -61,8 +64,22 @@ export default function Cart() {
       toast.error('购物车是空的');
       return;
     }
-    // 跳转到结算页面或创建订单
-    navigate('/orders');
+
+    if (!window.confirm(`确认结算 ${items.length} 件商品吗？`)) return;
+
+    const toastId = toast.loading('正在结算...');
+    try {
+      const res = await import('../api/order').then(m => m.orderApi.checkout()) as any;
+      if (res.code === 0) {
+        toast.success(`结算成功，生成 ${res.data.length} 个订单`, { id: toastId });
+        clearCart(); // Local clear
+        navigate('/orders');
+      } else {
+        toast.error(res.message || '结算失败', { id: toastId });
+      }
+    } catch (error: any) {
+      toast.error(error.message || '结算失败', { id: toastId });
+    }
   };
 
   if (loading) {

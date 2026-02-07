@@ -187,7 +187,7 @@ graph TD
 |------|------|
 | User | ID, Username, Password, Email, CreatedAt |
 | Product | ID, Name, Description, Price, Stock, Status |
-| Order | ID, OrderNo, UserID, TotalAmount, Status, CreatedAt |
+| Order | ID, OrderNo, UserID, ProductID, ProductName, ProductImage, Quantity, TotalPrice, Status, PayType, CreatedAt |
 | OrderItem | ID, OrderID, ProductID, Quantity, Price |
 | Cart | ID, UserID, ProductID, Quantity |
 | Stock | ID, ProductID, Count, Version |
@@ -230,6 +230,7 @@ RabbitMQ ←────────────── 扣减成功 ────
 1. **添加商品**：用户添加商品到购物车（Redis 存储）
 2. **管理操作**：修改数量、删除商品、清空购物车
 3. **结算**：将购物车商品批量转为订单
+4. **数据一致性**：支持软删除恢复（Revive Soft-Deleted Items），防止数量异常恢复
 
 ### 4.4 微信支付流程（沙箱环境）
 

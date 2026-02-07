@@ -5,9 +5,10 @@ export interface CartItem {
   id: number;
   product_id: number;
   product_name: string;
-  product_price: number;
+  price: number;
   product_image: string;
   quantity: number;
+  sub_total?: number;
 }
 
 export interface AddCartParams {
@@ -22,7 +23,7 @@ export interface UpdateCartParams {
 
 export const cartApi = {
   getList: () =>
-    api.get<ApiResponse<CartItem[]>>('/cart'),
+    api.get<ApiResponse<{ items: CartItem[]; total_count: number; total_price: number }>>('/cart'),
   add: (data: AddCartParams) =>
     api.post<ApiResponse<CartItem>>('/cart', data),
   update: (data: UpdateCartParams) =>

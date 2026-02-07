@@ -6,6 +6,7 @@ import (
 	"gomall/backend/internal/middleware"
 	"gomall/backend/internal/response"
 	"gomall/backend/internal/service"
+	"gomall/backend/pkg/jwt"
 
 	"github.com/gin-gonic/gin"
 )
@@ -44,7 +45,18 @@ func (h *UserHandler) Register(c *gin.Context) {
 		return
 	}
 
-	response.OkWithData(c, user)
+	// 注册成功后生成 token
+	jwtUtil := jwt.NewJWT()
+	token, err := jwtUtil.GenerateToken(user.ID, user.Username, user.Email)
+	if err != nil {
+		response.FailWithMsg(c, response.CodeServerError, "Token生成失败")
+		return
+	}
+
+	response.OkWithData(c, gin.H{
+		"token": token,
+		"user":  user,
+	})
 }
 
 // Login 用户登录
@@ -367,6 +379,30 @@ func (h *OrderHandler) Cancel(c *gin.Context) {
 	}
 
 	response.Ok(c)
+}
+
+// Checkout 购物车结算
+// @Summary 购物车结算
+// @Description 将购物车中的商品结算为订单
+// @Tags 订单
+// @Produce json
+// @Security Bearer
+// @Success 200 {object} response.Response
+// @Router /api/order/checkout [post]
+func (h *OrderHandler) Checkout(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		response.Unauthorized(c, "未登录")
+		return
+	}
+
+	orders, err := h.orderService.Checkout(userID)
+	if err != nil {
+		response.FailWithMsg(c, response.CodeOrderCreateFailed, err.Error())
+		return
+	}
+
+	response.OkWithData(c, orders)
 }
 
 // CartHandler 购物车接口处理层

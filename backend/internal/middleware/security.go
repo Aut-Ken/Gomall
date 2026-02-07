@@ -19,7 +19,7 @@ var sensitiveFields = regexp.MustCompile(`(?i)(password|secret|token|key|authori
 const MaskedValue = "***MASKED***"
 
 // LogSanitizerMiddleware 日志脱敏中间件
-// 自动脱敏请求体和响应体中的敏感信息
+// 自动脱敏请求体中的敏感信息
 func LogSanitizerMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 读取请求体
@@ -32,34 +32,8 @@ func LogSanitizerMiddleware() gin.HandlerFunc {
 			c.Set("sanitized_body", sanitizedBody)
 		}
 
-		// 创建自定义响应写入器
-		writer := &responseWriter{
-			ResponseWriter: c.Writer,
-			body:           &bytes.Buffer{},
-		}
-		c.Writer = writer
-
 		c.Next()
-
-		// 脱敏响应体
-		if writer.body.Len() > 0 {
-			sanitizedResponse := sanitizeJSON(writer.body.Bytes())
-			writer.body.Reset()
-			writer.Write(sanitizedResponse)
-		}
 	}
-}
-
-// responseWriter 自定义响应写入器
-type responseWriter struct {
-	gin.ResponseWriter
-	body *bytes.Buffer
-}
-
-// Write 写入响应
-func (rw *responseWriter) Write(b []byte) (int, error) {
-	rw.body.Write(b)
-	return rw.ResponseWriter.Write(b)
 }
 
 // sanitizeJSON 脱敏JSON中的敏感信息

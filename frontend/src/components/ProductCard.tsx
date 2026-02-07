@@ -36,7 +36,7 @@ export default function ProductCard({ product, showAdmin, onDelete }: ProductCar
         <div className={styles.footer}>
           <div className={styles.price}>
             <span className={styles.currency}>¥</span>
-            <span className={styles.value}>{product.price.toFixed(2)}</span>
+            <span className={styles.value}>{(product.price || 0).toFixed(2)}</span>
           </div>
           <span className={styles.stock}>库存: {product.stock}</span>
         </div>

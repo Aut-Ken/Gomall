@@ -4,6 +4,7 @@ import (
 	"gomall/backend/internal/api"
 	"gomall/backend/internal/middleware"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	swaggerfiles "github.com/swaggo/files"
@@ -12,6 +13,13 @@ import (
 
 // Setup 路由设置（集成所有优化）
 func Setup(r *gin.Engine) {
+	// 配置 CORS 中间件（允许跨域请求）
+	config := cors.DefaultConfig()
+	config.AllowAllOrigins = true
+	config.AllowHeaders = []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"}
+	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"}
+	r.Use(cors.New(config))
+
 	// 初始化处理器
 	userHandler := api.NewUserHandler()
 	productHandler := api.NewProductHandler()
@@ -84,6 +92,7 @@ func Setup(r *gin.Engine) {
 		orderGroup := apiGroup.Group("/order")
 		orderGroup.Use(middleware.AuthMiddleware())
 		{
+			orderGroup.POST("/checkout", orderHandler.Checkout)       // 购物车结算
 			orderGroup.POST("", orderHandler.Create)                  // 创建订单
 			orderGroup.GET("", orderHandler.List)                     // 获取订单列表
 			orderGroup.GET("/:order_no", orderHandler.Get)            // 获取订单详情
@@ -109,11 +118,11 @@ func Setup(r *gin.Engine) {
 		cartGroup := apiGroup.Group("/cart")
 		cartGroup.Use(middleware.AuthMiddleware())
 		{
-			cartGroup.POST("", cartHandler.AddToCart)          // 添加到购物车: POST /api/cart
-			cartGroup.GET("", cartHandler.List)               // 获取购物车列表: GET /api/cart
-			cartGroup.PUT("", cartHandler.Update)             // 更新购物车: PUT /api/cart
-			cartGroup.DELETE("", cartHandler.Remove)          // 删除购物车商品: DELETE /api/cart?product_id=xxx
-			cartGroup.DELETE("/clear", cartHandler.Clear)     // 清空购物车: DELETE /api/cart/clear
+			cartGroup.POST("", cartHandler.AddToCart)     // 添加到购物车: POST /api/cart
+			cartGroup.GET("", cartHandler.List)           // 获取购物车列表: GET /api/cart
+			cartGroup.PUT("", cartHandler.Update)         // 更新购物车: PUT /api/cart
+			cartGroup.DELETE("", cartHandler.Remove)      // 删除购物车商品: DELETE /api/cart?product_id=xxx
+			cartGroup.DELETE("/clear", cartHandler.Clear) // 清空购物车: DELETE /api/cart/clear
 		}
 
 		// 用户中心（需要登录）
@@ -126,30 +135,32 @@ func Setup(r *gin.Engine) {
 		// --- 新增：认证模块 ---
 		authGroup := apiGroup.Group("/auth")
 		{
-			authGroup.POST("/refresh-token", authHandler.RefreshToken) // 刷新Token: POST /api/auth/refresh-token
+			authGroup.POST("/refresh-token", authHandler.RefreshToken)                                  // 刷新Token: POST /api/auth/refresh-token
 			authGroup.POST("/change-password", middleware.AuthMiddleware(), authHandler.ChangePassword) // 修改密码: POST /api/auth/change-password
-			authGroup.POST("/logout", middleware.AuthMiddleware(), authHandler.Logout) // 退出登录: POST /api/auth/logout
+			authGroup.POST("/logout", middleware.AuthMiddleware(), authHandler.Logout)                  // 退出登录: POST /api/auth/logout
 		}
 
 		// --- 新增：文件上传模块 ---
 		uploadGroup := apiGroup.Group("/upload")
 		uploadGroup.Use(middleware.AuthMiddleware())
 		{
-			uploadGroup.POST("", fileHandler.Upload) // 单文件上传: POST /api/upload
+			uploadGroup.POST("", fileHandler.Upload)            // 单文件上传: POST /api/upload
 			uploadGroup.POST("/multi", fileHandler.UploadMulti) // 多文件上传: POST /api/upload/multi
 		}
 
 		// 配置静态文件服务
 		api.SetupStatic(r)
+		// 静态图片服务 (User requested path)
+		r.Static("/photos", "E:/Gomall/Photos")
 
 		// --- 新增：微信支付模块 ---
 		wechatPayGroup := apiGroup.Group("/pay/wechat")
 		wechatPayGroup.Use(middleware.AuthMiddleware())
 		{
-			wechatPayGroup.POST("/unified-order", wechatPayHandler.UnifiedOrder)   // 统一下单: POST /api/pay/wechat/unified-order
-			wechatPayGroup.GET("/query", wechatPayHandler.QueryOrder)              // 订单查询: GET /api/pay/wechat/query
-			wechatPayGroup.POST("/close", wechatPayHandler.CloseOrder)             // 关闭订单: POST /api/pay/wechat/close
-			wechatPayGroup.POST("/refund", wechatPayHandler.Refund)                // 申请退款: POST /api/pay/wechat/refund
+			wechatPayGroup.POST("/unified-order", wechatPayHandler.UnifiedOrder) // 统一下单: POST /api/pay/wechat/unified-order
+			wechatPayGroup.GET("/query", wechatPayHandler.QueryOrder)            // 订单查询: GET /api/pay/wechat/query
+			wechatPayGroup.POST("/close", wechatPayHandler.CloseOrder)           // 关闭订单: POST /api/pay/wechat/close
+			wechatPayGroup.POST("/refund", wechatPayHandler.Refund)              // 申请退款: POST /api/pay/wechat/refund
 		}
 
 		// 微信支付回调（无需认证）

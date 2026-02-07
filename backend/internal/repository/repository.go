@@ -25,10 +25,10 @@ package repository
  */
 
 import (
-	"errors"              // 错误处理
+	"errors"                           // 错误处理
 	"gomall/backend/internal/database" // 数据库连接包
-	"gomall/backend/internal/model"   // 数据模型包
-	"time"                  // 时间处理
+	"gomall/backend/internal/model"    // 数据模型包
+	"time"                             // 时间处理
 
 	"gorm.io/gorm" // GORM ORM框架
 )
@@ -805,6 +805,21 @@ func (r *CartRepository) GetByUserAndProduct(userID, productID uint) (*model.Car
 	var cart model.Cart
 	// 使用 AND 条件查询
 	if err := database.DB.Where("user_id = ? AND product_id = ?", userID, productID).First(&cart).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrCartNotFound
+		}
+		return nil, err
+	}
+	return &cart, nil
+}
+
+/**
+ * GetByUserAndProductUnscoped 获取用户的特定商品购物车记录（包含已软删除的记录）
+ */
+func (r *CartRepository) GetByUserAndProductUnscoped(userID, productID uint) (*model.Cart, error) {
+	var cart model.Cart
+	// Unscoped() 忽略软删除标记
+	if err := database.DB.Unscoped().Where("user_id = ? AND product_id = ?", userID, productID).First(&cart).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, ErrCartNotFound
 		}

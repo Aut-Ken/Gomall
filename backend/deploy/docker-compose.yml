@@ -7,15 +7,15 @@ services:
     container_name: gomall-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ""
+      MYSQL_ROOT_PASSWORD: password
       MYSQL_DATABASE: gomall
       MYSQL_CHARSET: utf8mb4
       MYSQL_COLLATION: utf8mb4_unicode_ci
     ports:
-      - "3306:3306"
+      - "3306:3306" # 暴露端口，允许本地连接
     volumes:
       - mysql_data:/var/lib/mysql
-      - ../deploy/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./deploy/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
     command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
@@ -29,7 +29,7 @@ services:
     container_name: gomall-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "6379:6379" # 暴露端口，允许本地连接
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -48,8 +48,8 @@ services:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "5672:5672"   # 消息服务端口
+      - "15672:15672" # 管理后台端口
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -57,51 +57,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  # GoMall应用
-  app:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
-    container_name: gomall-app
-    restart: unless-stopped
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-    ports:
-      - "8080:8080"
-    environment:
-      - GOMALL_DATABASE_HOST=mysql
-      - GOMALL_DATABASE_PORT=3306
-      - GOMALL_DATABASE_USERNAME=root
-      - GOMALL_DATABASE_PASSWORD=
-      - GOMALL_REDIS_HOST=redis
-      - GOMALL_REDIS_PORT=6379
-      - GOMALL_RABBITMQ_HOST=rabbitmq
-      - GOMALL_RABBITMQ_PORT=5672
-    volumes:
-      # 从backend目录挂载配置
-      - ../backend/conf/config-dev.yaml:/app/conf/config-dev.yaml:ro
-      - ../backend/uploads:/app/uploads
-
-  # Jaeger链路追踪（可选）
-  jaeger:
-    image: jaegertracing/all-in-one:1.47
-    container_name: gomall-jaeger
-    restart: unless-stopped
-    ports:
-      - "16686:16686"
-      - "4317:4317"
-      - "4318:4318"
-      - "6831:6831/udp"
-      - "6832:6832/udp"
-      - "14268:14268"
-    environment:
-      COLLECTOR_OTLP_ENABLED: true
 
 volumes:
   mysql_data:

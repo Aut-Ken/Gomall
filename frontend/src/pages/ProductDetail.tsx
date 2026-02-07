@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { productApi, Product } from '../api/product';
 import { cartApi } from '../api/cart';
+import { orderApi } from '../api/order';
 import { useAuthStore, useCartStore } from '../store';
 import toast from 'react-hot-toast';
 import styles from './ProductDetail.module.css';
@@ -10,7 +11,7 @@ export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
-  const { addItem, setCart } = useCartStore();
+  const { setCart } = useCartStore();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
@@ -53,7 +54,9 @@ export default function ProductDetail() {
         // 同步本地购物车状态
         const cartRes = await cartApi.getList();
         if (cartRes.code === 0) {
-          setCart(cartRes.data || []);
+          const cartData = cartRes.data as any;
+          const cartList = Array.isArray(cartData) ? cartData : cartData?.items || [];
+          setCart(cartList);
         }
         toast.success('已添加到购物车');
       } else {
@@ -72,8 +75,28 @@ export default function ProductDetail() {
       navigate('/login');
       return;
     }
-    // 直接购买逻辑
-    navigate(`/orders?product_id=${id}&quantity=${quantity}`);
+    // Create real order
+    if (!product) return;
+
+    // Prevent double clicking if needed (maybe locally if state allowed, but for now simple)
+    try {
+      // Assuming loading state handled by toast or quickly navigating
+      const toastId = toast.loading('正在创建订单...');
+      orderApi.create({ product_id: product.id, quantity }).then(res => {
+        toast.dismiss(toastId);
+        if (res.code === 0) {
+          toast.success('订单创建成功');
+          navigate('/orders');
+        } else {
+          toast.error(res.message || '创建订单失败');
+        }
+      }).catch(err => {
+        toast.dismiss(toastId);
+        toast.error(err.message || '创建订单失败');
+      });
+    } catch (error) {
+      // logic wrapped above
+    }
   };
 
   if (loading) {
@@ -137,7 +160,7 @@ export default function ProductDetail() {
               <span className={styles.priceLabel}>价格</span>
               <span className={styles.price}>
                 <span className={styles.currency}>¥</span>
-                <span className={styles.value}>{product.price.toFixed(2)}</span>
+                <span className={styles.value}>{(product.price || 0).toFixed(2)}</span>
               </span>
             </div>
 

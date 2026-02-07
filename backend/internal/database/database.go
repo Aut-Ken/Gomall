@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"gomall/backend/internal/config"
+	"gomall/backend/internal/model"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -64,10 +65,10 @@ func Init() error {
 	sqlDB.SetMaxOpenConns(maxOpenConns)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	// // 自动迁移数据库表结构
-	// if err := DB.AutoMigrate(&model.User{}, &model.Product{}, &model.Order{}, &model.Stock{}); err != nil {
-	// 	return fmt.Errorf("数据库迁移失败: %w", err)
-	// }
+	// 自动迁移数据库表结构
+	if err := DB.AutoMigrate(&model.User{}, &model.Product{}, &model.Order{}, &model.Stock{}, &model.Cart{}); err != nil {
+		return fmt.Errorf("数据库迁移失败: %w", err)
+	}
 
 	return nil
 }

@@ -1,5 +1,5 @@
 import api from './request';
-import { ApiResponse, PaginatedResponse, PaginationParams } from './types';
+import { ApiResponse } from './types';
 
 // 用户相关
 export interface User {

@@ -147,7 +147,7 @@ func (s *SeckillService) ProcessSeckillOrders() {
 
 	// 调用 rabbitmq 包里的消费函数
 	rabbitmq.ConsumeSeckillMessage(func(msg *rabbitmq.SeckillMessage) error {
-		logger.Info("收到秒杀请求",
+		logger.Info("收到秒杀请求 - Handler Start",
 			zap.Uint("user_id", msg.UserID),
 			zap.Uint("product_id", msg.ProductID),
 			zap.Int64("request_id", msg.RequestID),
@@ -178,14 +178,15 @@ func (s *SeckillService) ProcessSeckillOrders() {
 
 		// 4. 构造订单对象
 		order := &model.Order{
-			OrderNo:     orderNo,
-			UserID:      msg.UserID,
-			ProductID:   msg.ProductID,
-			ProductName: product.Name,
-			Quantity:    1,
-			TotalPrice:  product.Price,
-			Status:      1, // 待支付
-			PayType:     1,
+			OrderNo:      orderNo,
+			UserID:       msg.UserID,
+			ProductID:    msg.ProductID,
+			ProductName:  product.Name,
+			ProductImage: product.ImageURL,
+			Quantity:     1,
+			TotalPrice:   product.Price,
+			Status:       1, // 待支付
+			PayType:      1,
 		}
 
 		// 5. 写入数据库 (真正的落库操作)

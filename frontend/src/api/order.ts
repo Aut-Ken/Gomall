@@ -22,8 +22,10 @@ export interface CreateOrderParams {
 export const orderApi = {
   create: (data: CreateOrderParams) =>
     api.post<ApiResponse<Order>>('/order', data),
+  checkout: () =>
+    api.post<ApiResponse<Order[]>>('/order/checkout'),
   getList: () =>
-    api.get<ApiResponse<Order[]>>('/order'),
+    api.get<ApiResponse<{ list: Order[]; total: number }>>('/order'),
   getDetail: (order_no: string) =>
     api.get<ApiResponse<Order>>(`/order/${order_no}`),
   pay: (order_no: string, pay_type: number = 1) =>

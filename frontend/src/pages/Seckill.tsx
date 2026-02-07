@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store';
+import { seckillApi } from '../api/seckill';
 import toast from 'react-hot-toast';
 import styles from './Seckill.module.css';
 
@@ -32,7 +33,7 @@ export default function Seckill() {
         id: 1,
         product_id: 1,
         product_name: 'iPhone 15 Pro Max',
-        product_image: '',
+        product_image: 'http://localhost:8080/photos/product_iphone.jpg',
         original_price: 9999,
         seckill_price: 5999,
         stock: 10,
@@ -43,7 +44,7 @@ export default function Seckill() {
         id: 2,
         product_id: 2,
         product_name: 'MacBook Pro 14"',
-        product_image: '',
+        product_image: 'http://localhost:8080/photos/product_laptop.jpg',
         original_price: 14999,
         seckill_price: 9999,
         stock: 5,
@@ -54,7 +55,7 @@ export default function Seckill() {
         id: 3,
         product_id: 3,
         product_name: 'AirPods Pro 2',
-        product_image: '',
+        product_image: 'http://localhost:8080/photos/product_headphone.jpg',
         original_price: 1899,
         seckill_price: 999,
         stock: 50,
@@ -65,7 +66,7 @@ export default function Seckill() {
         id: 4,
         product_id: 4,
         product_name: 'Apple Watch Ultra 2',
-        product_image: '',
+        product_image: 'http://localhost:8080/photos/product_watch.jpg',
         original_price: 6499,
         seckill_price: 4999,
         stock: 20,
@@ -110,11 +111,14 @@ export default function Seckill() {
 
     setSeckilling(product.id);
     try {
-      // 实际项目中这里调用秒杀API
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      toast.success('秒杀成功！订单已创建');
-      navigate('/orders');
+      // Call real Seckill API
+      const res = await seckillApi.seckill(product.product_id);
+      if (res.code === 0) {
+        toast.success('秒杀成功！订单已创建');
+        navigate('/orders');
+      } else {
+        toast.error(res.message || '秒杀失败');
+      }
     } catch (error: any) {
       toast.error(error.message || '秒杀失败');
     } finally {
@@ -177,7 +181,7 @@ export default function Seckill() {
                       </div>
                     )}
                     <div className={styles.discount}>
-                      {Math.round((1 - product.seckill_price / product.original_price) * 100)}%OFF
+                      {Math.round((1 - (product.seckill_price || 0) / (product.original_price || 1)) * 100)}%OFF
                     </div>
                   </div>
 
@@ -219,8 +223,8 @@ export default function Seckill() {
                       {seckilling === product.id
                         ? '正在秒杀...'
                         : product.stock <= 0
-                        ? '已售罄'
-                        : '立即秒杀'}
+                          ? '已售罄'
+                          : '立即秒杀'}
                     </button>
                   </div>
                 </div>
